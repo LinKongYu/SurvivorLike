@@ -1,9 +1,11 @@
 /**
  * 实体工厂 - 创建预配置的实体
  * 新增英雄/怪物类型只需添加新工厂函数
+ *
+ * 所有可视实体都通过 Render 组件引用 PrefabPool 中的预制体名称；
+ * 外观（Sprite/图片/颜色）由用户在编辑器里的预制体中配置。
  */
 
-import { Color } from 'cc';
 import { ECSWorld } from './World';
 import {
     Transform, Render, Health, PlayerTag, PlayerInput,
@@ -17,7 +19,7 @@ import {
 export function createPlayer(world: ECSWorld, x: number, y: number): number {
     const eid = world.createEntity();
     world.addComponent(eid, new Transform(x, y));
-    world.addComponent(eid, new Render(40, 40, new Color(50, 180, 50, 255), 'rect'));
+    world.addComponent(eid, new Render('Player'));
     world.addComponent(eid, new Health(100, 100, 0.5));
     world.addComponent(eid, new PlayerTag(200));
     world.addComponent(eid, new PlayerInput());
@@ -36,7 +38,7 @@ export function createEnemy(
 
     const eid = world.createEntity();
     world.addComponent(eid, new Transform(x, y));
-    world.addComponent(eid, new Render(40, 40, new Color(220, 50, 50, 255), 'rect'));
+    world.addComponent(eid, new Render('Enemy'));
     world.addComponent(eid, new Health(Math.floor(40 * hpMul), Math.floor(40 * hpMul)));
     world.addComponent(eid, new EnemyTag(
         Math.floor(10 * dmgMul),
@@ -44,7 +46,6 @@ export function createEnemy(
         80 * spdMul,
     ));
     world.addComponent(eid, new ChaseTarget(playerEid));
-    // 碰撞半径略小于 Render 半宽，让视觉上可以有少量重叠，避免贴身时僵硬
     world.addComponent(eid, new Collider(18));
     return eid;
 }
@@ -57,7 +58,7 @@ export function createBullet(
 ): number {
     const eid = world.createEntity();
     world.addComponent(eid, new Transform(x, y));
-    world.addComponent(eid, new Render(10, 10, new Color(255, 220, 50, 255), 'circle'));
+    world.addComponent(eid, new Render('Bullet'));
     world.addComponent(eid, new BulletComp(damage, 1.5, dirX, dirY, speed));
     return eid;
 }
@@ -65,7 +66,7 @@ export function createBullet(
 export function createExpOrb(world: ECSWorld, x: number, y: number, value: number): number {
     const eid = world.createEntity();
     world.addComponent(eid, new Transform(x, y));
-    world.addComponent(eid, new Render(14, 14, new Color(80, 150, 255, 255), 'circle'));
+    world.addComponent(eid, new Render('ExpOrb'));
     const orb = world.addComponent(eid, new ExpOrbComp(value));
     orb.baseY = y;
     return eid;
@@ -81,9 +82,9 @@ export function createSpawner(world: ECSWorld, playerEid: number): number {
 
 /**
  * 创建刀的扇形伤害区实体。
- * 通过 Render 的 sector 形状 + rotation 实现可视化。
+ * 尺寸由 range 动态决定，覆盖预制体的默认 contentSize。
  *
- * @param facingAngle 朝向角度（弧度），0 为向右
+ * @param facingAngle 朝向角度（弧度，0 为向右）
  */
 export function createBladeHitbox(
     world: ECSWorld,
@@ -94,15 +95,13 @@ export function createBladeHitbox(
 ): number {
     const eid = world.createEntity();
     world.addComponent(eid, new Transform(x, y));
-    // 扇形半透明白色，旋转到目标角度（弧度转度）
-    const render = new Render(
-        range * 2, range * 2,
-        new Color(255, 255, 255, 140),
-        'sector',
+    // range 是半径，渲染节点用直径作为 contentSize
+    // 预制体应设计为以左边缘为锚点（anchorX=0）的扇形，默认尺寸 100×100
+    world.addComponent(eid, new Render(
+        'BladeHitbox',
         facingAngle * 180 / Math.PI,
-        arc,
-    );
-    world.addComponent(eid, render);
+        range * 2, range * 2,
+    ));
     world.addComponent(eid, new BladeHitbox(lifeTime, damage, range, facingAngle, arc));
     return eid;
 }
@@ -120,9 +119,8 @@ export function createOrbitingSword(
     damage: number,
 ): number {
     const eid = world.createEntity();
-    // 初始位置会被 OrbitSystem 立即覆盖，先填 0,0
     world.addComponent(eid, new Transform(0, 0));
-    world.addComponent(eid, new Render(16, 16, new Color(200, 230, 255, 255), 'circle'));
+    world.addComponent(eid, new Render('OrbitingSword'));
     world.addComponent(eid, new OrbitingSword(
         ownerEid, initialAngle, angularSpeed, orbitRadius, damage,
     ));
@@ -136,19 +134,22 @@ export function createBomb(
 ): number {
     const eid = world.createEntity();
     world.addComponent(eid, new Transform(x, y));
-    world.addComponent(eid, new Render(24, 24, new Color(60, 60, 60, 255), 'circle'));
+    world.addComponent(eid, new Render('Bomb'));
     world.addComponent(eid, new Bomb(fuseTime, damage, blastRadius));
     return eid;
 }
 
-/** 创建爆炸伤害圈实体（即刻生效，短暂存在） */
+/**
+ * 创建爆炸伤害圈实体（即刻生效，短暂存在）
+ * 尺寸由 radius 动态决定，覆盖预制体的默认 contentSize。
+ */
 export function createExplosion(
     world: ECSWorld, x: number, y: number,
     radius: number, damage: number, lifeTime: number = 0.35,
 ): number {
     const eid = world.createEntity();
     world.addComponent(eid, new Transform(x, y));
-    world.addComponent(eid, new Render(radius * 2, radius * 2, new Color(255, 130, 30, 180), 'circle'));
+    world.addComponent(eid, new Render('Explosion', 0, radius * 2, radius * 2));
     world.addComponent(eid, new Explosion(lifeTime, damage, radius));
     return eid;
 }

@@ -3,7 +3,7 @@
  * Component = 纯数据类，无逻辑方法
  */
 
-import { Node, Color } from 'cc';
+import { Node } from 'cc';
 
 // ─── 通用 ───
 
@@ -12,21 +12,25 @@ export class Transform {
     constructor(public x: number = 0, public y: number = 0) {}
 }
 
-/** Cocos 渲染桥接 */
+/**
+ * 渲染桥接：引用 PrefabPool 中的预制体名称
+ *
+ * width/height 为可选覆盖：若 > 0，RenderSystem 会用该尺寸覆盖预制体默认的
+ * UITransform.contentSize，用于需要动态改变尺寸的实体（如刀扇形、爆炸圈）。
+ */
 export class Render {
     /** 由 RenderSystem 创建并管理 */
     node: Node | null = null;
     /** 标记 RenderSystem 是否已经为此组件创建了 Node */
     created: boolean = false;
     constructor(
-        public width: number = 40,
-        public height: number = 40,
-        public color: Color = new Color(255, 255, 255, 255),
-        public shape: 'rect' | 'circle' | 'sector' = 'rect',
+        public prefabName: string = 'Player',
         /** 节点旋转角度（度），RenderSystem 每帧同步到 node.angle */
         public rotation: number = 0,
-        /** 'sector' 专用：扇形张角（弧度），从 -arcAngle/2 到 +arcAngle/2 */
-        public arcAngle: number = Math.PI / 2,
+        /** 覆盖预制体默认 contentSize 宽（0 = 用预制体原始尺寸） */
+        public width: number = 0,
+        /** 覆盖预制体默认 contentSize 高（0 = 用预制体原始尺寸） */
+        public height: number = 0,
     ) {}
 }
 
