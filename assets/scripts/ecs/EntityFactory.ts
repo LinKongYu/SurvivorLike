@@ -8,7 +8,7 @@ import { ECSWorld } from './World';
 import {
     Transform, Render, Health, PlayerTag, PlayerInput,
     AutoAttack, Level, EnemyTag, ChaseTarget,
-    BulletComp, ExpOrbComp, SpawnerComp,
+    BulletComp, ExpOrbComp, SpawnerComp, Collider,
 } from './Components';
 
 export function createPlayer(world: ECSWorld, x: number, y: number): number {
@@ -41,6 +41,8 @@ export function createEnemy(
         80 * spdMul,
     ));
     world.addComponent(eid, new ChaseTarget(playerEid));
+    // 碰撞半径略小于 Render 半宽，让视觉上可以有少量重叠，避免贴身时僵硬
+    world.addComponent(eid, new Collider(18));
     return eid;
 }
 

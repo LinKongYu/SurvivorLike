@@ -36,6 +36,21 @@ export class Health {
     ) {}
 }
 
+/** 圆形碰撞体，用于实体间软分离（非触发性碰撞） */
+export class Collider {
+    constructor(public radius: number = 20) {}
+}
+
+/** 瞬时击退速度，会随时间指数衰减，衰减到阈值以下后自动移除 */
+export class Knockback {
+    constructor(
+        public vx: number = 0,
+        public vy: number = 0,
+        /** 衰减速率，越大衰减越快。8 大约对应 0.3s 衰减到忽略不计 */
+        public decayRate: number = 8,
+    ) {}
+}
+
 // ─── 玩家 ───
 
 /** 标记实体为玩家 */

@@ -1,7 +1,7 @@
 import { ISystem, ECSWorld } from '../World';
 import {
     Transform, Health, PlayerTag, AutoAttack,
-    EnemyTag, BulletComp,
+    EnemyTag, BulletComp, Knockback,
 } from '../Components';
 import { createBullet } from '../EntityFactory';
 
@@ -13,6 +13,8 @@ export class CombatSystem implements ISystem {
 
     private readonly BULLET_HIT_DIST_SQ = 30 * 30;
     private readonly ENEMY_HIT_DIST_SQ = 40 * 40;
+    /** 子弹命中敌人时施加的击退初速度（像素/秒） */
+    private readonly BULLET_KNOCKBACK_SPEED = 350;
 
     update(dt: number, world: ECSWorld): void {
         if (world.isGameOver()) return;
@@ -83,6 +85,21 @@ export class CombatSystem implements ISystem {
 
                 if (dx * dx + dy * dy < this.BULLET_HIT_DIST_SQ) {
                     hp.hp -= bullet.damage;
+
+                    // 施加击退：沿子弹飞行方向推开敌人
+                    const existing = world.getComponent(eid, Knockback);
+                    if (existing) {
+                        // 叠加到已有击退上（多发子弹命中会累积，有上限由衰减自然控制）
+                        existing.vx += bullet.dirX * this.BULLET_KNOCKBACK_SPEED;
+                        existing.vy += bullet.dirY * this.BULLET_KNOCKBACK_SPEED;
+                    } else {
+                        world.addComponent(eid, new Knockback(
+                            bullet.dirX * this.BULLET_KNOCKBACK_SPEED,
+                            bullet.dirY * this.BULLET_KNOCKBACK_SPEED,
+                            8,
+                        ));
+                    }
+
                     world.destroyEntity(bid);
                     break;
                 }

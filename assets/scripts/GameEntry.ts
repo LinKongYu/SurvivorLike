@@ -3,6 +3,7 @@ import { ECSWorld } from './ecs/World';
 import { createPlayer, createSpawner, createEnemy } from './ecs/EntityFactory';
 import { InputSystem } from './ecs/systems/InputSystem';
 import { MovementSystem } from './ecs/systems/MovementSystem';
+import { SeparationSystem } from './ecs/systems/SeparationSystem';
 import { CombatSystem } from './ecs/systems/CombatSystem';
 import { ExperienceSystem } from './ecs/systems/ExperienceSystem';
 import { SpawnerSystem } from './ecs/systems/SpawnerSystem';
@@ -28,6 +29,7 @@ export class GameEntry extends Component {
         // 注册 System（按 priority 排序）
         this._world.addSystem(new InputSystem(), 0);
         this._world.addSystem(new MovementSystem(), 10);
+        this._world.addSystem(new SeparationSystem(), 15);
         this._world.addSystem(new CombatSystem(), 20);
         this._world.addSystem(new ExperienceSystem(), 30);
         this._world.addSystem(new SpawnerSystem(), 40);

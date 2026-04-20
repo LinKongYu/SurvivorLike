@@ -1,5 +1,5 @@
 import { ISystem, ECSWorld } from '../World';
-import { Transform, EnemyTag, Health, SpawnerComp } from '../Components';
+import { Transform, EnemyTag, SpawnerComp } from '../Components';
 import { createEnemy } from '../EntityFactory';
 
 /**
@@ -29,11 +29,9 @@ export class SpawnerSystem implements ISystem {
             if (spawner.timer < spawner.interval) continue;
             spawner.timer = 0;
 
-            // 统计当前存活敌人数
-            const enemyCount = world.query(EnemyTag, Health).filter(eid => {
-                const hp = world.getComponent(eid, Health);
-                return hp && hp.hp > 0;
-            }).length;
+            // 统计当前敌人数：直接用 store.size (O(1))，允许 1 帧死亡窗口的微量误差
+            const enemyStore = world.getStore(EnemyTag);
+            const enemyCount = enemyStore ? enemyStore.size : 0;
 
             if (enemyCount >= spawner.maxCount) continue;
 
