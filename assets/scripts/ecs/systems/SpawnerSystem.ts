@@ -9,7 +9,7 @@ import { createEnemy } from '../EntityFactory';
 export class SpawnerSystem implements ISystem {
 
     update(dt: number, world: ECSWorld): void {
-        if (world.isGameOver()) return;
+        if (world.isGameOver() || world.isPaused()) return;
 
         const store = world.getStore(SpawnerComp);
         if (!store) return;

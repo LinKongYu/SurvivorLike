@@ -17,7 +17,7 @@ export class CombatSystem implements ISystem {
     private readonly BULLET_KNOCKBACK_SPEED = 350;
 
     update(dt: number, world: ECSWorld): void {
-        if (world.isGameOver()) return;
+        if (world.isGameOver() || world.isPaused()) return;
 
         this.autoAttack(dt, world);
         this.bulletEnemyCollision(world);
@@ -53,14 +53,19 @@ export class CombatSystem implements ISystem {
 
             if (nearestEid < 0 || nearestDistSq > atk.range * atk.range) continue;
 
-            // 发射子弹
+            // 发射 count 发子弹，以主方向为中心均匀散射
             atk.timer = 0;
             const etf = world.getComponent(nearestEid, Transform)!;
-            const dx = etf.x - ptf.x;
-            const dy = etf.y - ptf.y;
-            const dist = Math.sqrt(nearestDistSq);
-            if (dist > 0) {
-                createBullet(world, ptf.x, ptf.y, dx / dist, dy / dist, atk.damage, atk.bulletSpeed);
+            const baseAngle = Math.atan2(etf.y - ptf.y, etf.x - ptf.x);
+
+            const n = Math.max(1, atk.count);
+            for (let i = 0; i < n; i++) {
+                // i=0 居中；n>1 时在 [-spread/2, +spread/2] 之间均分
+                const offset = n === 1 ? 0 : ((i / (n - 1)) - 0.5) * atk.spreadAngle;
+                const angle = baseAngle + offset;
+                const dirX = Math.cos(angle);
+                const dirY = Math.sin(angle);
+                createBullet(world, ptf.x, ptf.y, dirX, dirY, atk.damage, atk.bulletSpeed);
             }
         }
     }

@@ -1,20 +1,38 @@
 import { ISystem, ECSWorld } from '../World';
 import {
-    Transform, Health, PlayerTag, AutoAttack, Level,
-    EnemyTag, ExpOrbComp,
+    Transform, Health, PlayerTag, Level, EnemyTag, ExpOrbComp,
 } from '../Components';
+import { LevelUpRequest } from '../SkillComponents';
+import { pickRandomUpgrades } from '../UpgradePool';
 import { createExpOrb } from '../EntityFactory';
 
 /**
- * ExperienceSystem - 敌人死亡掉落经验球 + 经验球吸引/收集 + 升级
+ * ExperienceSystem - 敌人死亡掉落经验球 + 经验球吸引/收集 + 升级触发
  * Priority: 30
+ *
+ * 升级流程改造：
+ * 不再自动应用血量/伤害成长，而是升级时：
+ * 1. 玩家血量回满（保留这个基本反馈）
+ * 2. 挂上 LevelUpRequest 组件 + 暂停世界
+ * 3. UISystem 检测到 LevelUpRequest 显示三选一卡片，应用升级后解除暂停
+ *
+ * 若升级期间再次升级（多个经验球同帧拾取），pendingCount 递增排队。
  */
 export class ExperienceSystem implements ISystem {
 
     update(dt: number, world: ECSWorld): void {
-        this.handleEnemyDeath(world);
+        // 即使暂停也要处理死亡敌人生成经验球？否则暂停期间世界"卡住"。
+        // 但 CombatSystem 暂停时不扣血，所以 hp 不会新降到 0。
+        // 安全起见：暂停时只跳过吸引/收集逻辑，其他例行清理仍执行。
+        if (world.isGameOver()) return;
+
+        if (!world.isPaused()) {
+            this.handleEnemyDeath(world);
+        }
         this.updateInvincibility(dt, world);
-        this.attractAndCollectOrbs(dt, world);
+        if (!world.isPaused()) {
+            this.attractAndCollectOrbs(dt, world);
+        }
     }
 
     /** 检测死亡敌人，生成经验球并销毁 */
@@ -54,9 +72,6 @@ export class ExperienceSystem implements ISystem {
         if (!orbStore) return;
 
         const level = world.getComponent(player.eid, Level);
-        const hp = world.getComponent(player.eid, Health);
-        const atk = world.getComponent(player.eid, AutoAttack);
-        const pTag = player.comp;
 
         for (const [eid, orb] of orbStore) {
             const otf = world.getComponent(eid, Transform);
@@ -66,32 +81,22 @@ export class ExperienceSystem implements ISystem {
             const dy = ptf.y - otf.y;
             const distSq = dx * dx + dy * dy;
 
-            // 吸引检测
             if (!orb.attracted && distSq < orb.attractRange * orb.attractRange) {
                 orb.attracted = true;
             }
 
-            // 飞向玩家
             if (orb.attracted) {
                 const dist = Math.sqrt(distSq);
                 if (dist < 20) {
                     // 收集
                     if (level) {
                         level.exp += orb.value;
-                        // 升级循环
+                        // 处理可能的连续升级
                         while (level.exp >= level.expToNext) {
                             level.level++;
                             level.exp -= level.expToNext;
                             level.expToNext = Math.floor(10 * level.level);
-                            // 升级奖励
-                            if (hp) {
-                                hp.maxHp += 10;
-                                hp.hp = hp.maxHp;
-                            }
-                            if (atk) {
-                                atk.damage += 5;
-                            }
-                            pTag.moveSpeed += 5;
+                            this.triggerLevelUp(world, player.eid);
                         }
                     }
                     world.destroyEntity(eid);
@@ -101,5 +106,29 @@ export class ExperienceSystem implements ISystem {
                 }
             }
         }
+    }
+
+    /**
+     * 升级触发：
+     * 1. 玩家血量回满
+     * 2. 若已有 LevelUpRequest：pendingCount+1（排队）
+     * 3. 否则：新建 LevelUpRequest，抽 3 个升级，暂停世界
+     */
+    private triggerLevelUp(world: ECSWorld, playerEid: number): void {
+        // 回满血
+        const hp = world.getComponent(playerEid, Health);
+        if (hp) hp.hp = hp.maxHp;
+
+        const existing = world.getComponent(playerEid, LevelUpRequest);
+        if (existing) {
+            existing.pendingCount += 1;
+            return;
+        }
+
+        const req = new LevelUpRequest();
+        req.pendingCount = 1;
+        req.currentChoices = pickRandomUpgrades(world, playerEid, 3).map(u => u.id);
+        world.addComponent(playerEid, req);
+        world.setPaused(true);
     }
 }

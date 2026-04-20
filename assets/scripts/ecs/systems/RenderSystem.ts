@@ -1,4 +1,4 @@
-import { Node, UITransform, Graphics, Color, Size } from 'cc';
+import { Node, UITransform, Graphics, Size } from 'cc';
 import { ISystem, ECSWorld } from '../World';
 import { Transform, Render } from '../Components';
 
@@ -8,8 +8,10 @@ import { Transform, Render } from '../Components';
  *
  * 职责：
  * 1. 为新 Render 组件创建 Cocos Node（Graphics 绘制）
- * 2. 每帧同步 Transform → Node.position
+ * 2. 每帧同步 Transform → Node.position，Render.rotation → Node.angle
  * 3. 销毁已不存在实体的 Node
+ *
+ * 支持形状：rect / circle / sector（扇形）
  */
 export class RenderSystem implements ISystem {
 
@@ -25,18 +27,18 @@ export class RenderSystem implements ISystem {
         const store = world.getStore(Render);
         if (!store) return;
 
-        // 1. 为新 Render 创建 Node；同步位置
+        // 1. 为新 Render 创建 Node；同步位置和旋转
         for (const [eid, render] of store) {
             if (!render.created) {
                 this.createNode(eid, render, world);
             }
 
-            // 同步位置
             if (render.node) {
                 const tf = world.getComponent(eid, Transform);
                 if (tf) {
                     render.node.setPosition(tf.x, tf.y, 0);
                 }
+                render.node.angle = render.rotation;
             }
         }
 
@@ -59,18 +61,35 @@ export class RenderSystem implements ISystem {
         const g = node.addComponent(Graphics);
         g.fillColor = render.color;
 
-        if (render.shape === 'circle') {
-            g.circle(0, 0, render.width / 2);
-        } else {
-            g.rect(-render.width / 2, -render.height / 2, render.width, render.height);
+        switch (render.shape) {
+            case 'circle':
+                g.circle(0, 0, render.width / 2);
+                g.fill();
+                break;
+            case 'sector': {
+                // 绘制以原点为中心、指向 +X 的扇形（饼形）
+                // 实际朝向通过 render.rotation (由 Node.angle 承载) 控制
+                const r = render.width / 2;
+                const half = render.arcAngle * 0.5;
+                g.moveTo(0, 0);
+                g.arc(0, 0, r, -half, half, false);
+                g.lineTo(0, 0);
+                g.fill();
+                break;
+            }
+            case 'rect':
+            default:
+                g.rect(-render.width / 2, -render.height / 2, render.width, render.height);
+                g.fill();
+                break;
         }
-        g.fill();
 
-        // 设置初始位置
+        // 设置初始位置和旋转
         const tf = world.getComponent(eid, Transform);
         if (tf) {
             node.setPosition(tf.x, tf.y, 0);
         }
+        node.angle = render.rotation;
 
         render.node = node;
         render.created = true;

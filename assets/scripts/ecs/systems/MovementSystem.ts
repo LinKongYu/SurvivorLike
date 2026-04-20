@@ -17,6 +17,8 @@ import {
 export class MovementSystem implements ISystem {
 
     update(dt: number, world: ECSWorld): void {
+        if (world.isPaused() || world.isGameOver()) return;
+
         this.movePlayer(dt, world);
         this.moveEnemies(dt, world);
         this.moveBullets(dt, world);

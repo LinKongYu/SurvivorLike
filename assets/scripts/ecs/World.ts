@@ -23,6 +23,7 @@ export class ECSWorld {
     private _destroyQueue: number[] = [];
     private _systems: { sys: ISystem; priority: number }[] = [];
     private _gameOver: boolean = false;
+    private _paused: boolean = false;
 
     // ─── Entity ───
 
@@ -129,6 +130,10 @@ export class ECSWorld {
 
     setGameOver(): void { this._gameOver = true; }
     isGameOver(): boolean { return this._gameOver; }
+
+    /** 暂停时游戏逻辑系统（movement/combat/spawner/experience/skill）应跳过，UI/render 照常运行 */
+    setPaused(p: boolean): void { this._paused = p; }
+    isPaused(): boolean { return this._paused; }
 
     // ─── Update Loop ───
 

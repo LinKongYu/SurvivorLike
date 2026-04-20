@@ -16,6 +16,8 @@ import { Transform, EnemyTag, Collider } from '../Components';
 export class SeparationSystem implements ISystem {
 
     update(_dt: number, world: ECSWorld): void {
+        if (world.isPaused() || world.isGameOver()) return;
+
         const enemies = world.query(Transform, EnemyTag, Collider);
         const n = enemies.length;
         if (n < 2) return;

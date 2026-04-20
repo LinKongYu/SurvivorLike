@@ -22,7 +22,11 @@ export class Render {
         public width: number = 40,
         public height: number = 40,
         public color: Color = new Color(255, 255, 255, 255),
-        public shape: 'rect' | 'circle' = 'rect',
+        public shape: 'rect' | 'circle' | 'sector' = 'rect',
+        /** 节点旋转角度（度），RenderSystem 每帧同步到 node.angle */
+        public rotation: number = 0,
+        /** 'sector' 专用：扇形张角（弧度），从 -arcAngle/2 到 +arcAngle/2 */
+        public arcAngle: number = Math.PI / 2,
     ) {}
 }
 
@@ -73,6 +77,10 @@ export class AutoAttack {
         public range: number = 400,
         public damage: number = 20,
         public bulletSpeed: number = 500,
+        /** 每次射击发射的子弹数；>1 时以 spreadAngle 均匀散射 */
+        public count: number = 1,
+        /** 散射总角度（弧度） */
+        public spreadAngle: number = 0.3,
     ) {}
 }
 
