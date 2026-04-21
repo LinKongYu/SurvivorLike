@@ -4,6 +4,7 @@ import {
 } from '../Components';
 import { BladeAttack, BladeHitbox } from '../SkillComponents';
 import { createBladeHitbox } from '../EntityFactory';
+import { GameConfig } from '../GameConfig';
 
 /**
  * BladeSystem - 扇形挥砍
@@ -16,8 +17,6 @@ import { createBladeHitbox } from '../EntityFactory';
  * 4. Hitbox.lifeTime 到期后销毁
  */
 export class BladeSystem implements ISystem {
-
-    private readonly KNOCKBACK_SPEED = 250;
 
     update(dt: number, world: ECSWorld): void {
         if (world.isGameOver() || world.isPaused()) return;
@@ -74,6 +73,7 @@ export class BladeSystem implements ISystem {
         const store = world.getStore(BladeHitbox);
         if (!store) return;
 
+        const knockbackSpeed = GameConfig.skills.blade.knockbackSpeed;
         const enemies = world.query(Transform, EnemyTag, Health);
 
         for (const [hid, hitbox] of store) {
@@ -118,12 +118,12 @@ export class BladeSystem implements ISystem {
                 const sin = Math.sin(hitbox.facingAngle);
                 const kb = world.getComponent(eid, Knockback);
                 if (kb) {
-                    kb.vx += cos * this.KNOCKBACK_SPEED;
-                    kb.vy += sin * this.KNOCKBACK_SPEED;
+                    kb.vx += cos * knockbackSpeed;
+                    kb.vy += sin * knockbackSpeed;
                 } else {
                     world.addComponent(eid, new Knockback(
-                        cos * this.KNOCKBACK_SPEED,
-                        sin * this.KNOCKBACK_SPEED,
+                        cos * knockbackSpeed,
+                        sin * knockbackSpeed,
                         8,
                     ));
                 }

@@ -1,0 +1,2 @@
+hp,moveSpeed,invincibleTime,initialAttack.cooldown,initialAttack.range,initialAttack.damage,initialAttack.bulletSpeed,initialAttack.count,initialAttack.spreadAngle,level.initialExpToNext,level.expGrowthFactor
+100,200,0.5,0.5,400,20,500,1,0.3,10,10

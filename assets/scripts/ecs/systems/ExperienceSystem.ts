@@ -5,6 +5,7 @@ import {
 import { LevelUpRequest } from '../SkillComponents';
 import { pickRandomUpgrades } from '../UpgradePool';
 import { createExpOrb } from '../EntityFactory';
+import { GameConfig } from '../GameConfig';
 
 /**
  * ExperienceSystem - 敌人死亡掉落经验球 + 经验球吸引/收集 + 升级触发
@@ -72,6 +73,8 @@ export class ExperienceSystem implements ISystem {
         if (!orbStore) return;
 
         const level = world.getComponent(player.eid, Level);
+        const collectDist = GameConfig.skills.expOrb.collectDistance;
+        const growth = GameConfig.player.level.expGrowthFactor;
 
         for (const [eid, orb] of orbStore) {
             const otf = world.getComponent(eid, Transform);
@@ -87,7 +90,7 @@ export class ExperienceSystem implements ISystem {
 
             if (orb.attracted) {
                 const dist = Math.sqrt(distSq);
-                if (dist < 20) {
+                if (dist < collectDist) {
                     // 收集
                     if (level) {
                         level.exp += orb.value;
@@ -95,7 +98,7 @@ export class ExperienceSystem implements ISystem {
                         while (level.exp >= level.expToNext) {
                             level.level++;
                             level.exp -= level.expToNext;
-                            level.expToNext = Math.floor(10 * level.level);
+                            level.expToNext = Math.floor(growth * level.level);
                             this.triggerLevelUp(world, player.eid);
                         }
                     }

@@ -4,17 +4,15 @@ import {
     EnemyTag, BulletComp, Knockback,
 } from '../Components';
 import { createBullet } from '../EntityFactory';
+import { GameConfig } from '../GameConfig';
 
 /**
  * CombatSystem - 自动射击 + 碰撞检测 + 伤害处理 + 死亡
  * Priority: 20
+ *
+ * 所有命中半径 / 击退速度从 GameConfig（CSV）读取。
  */
 export class CombatSystem implements ISystem {
-
-    private readonly BULLET_HIT_DIST_SQ = 30 * 30;
-    private readonly ENEMY_HIT_DIST_SQ = 40 * 40;
-    /** 子弹命中敌人时施加的击退初速度（像素/秒） */
-    private readonly BULLET_KNOCKBACK_SPEED = 350;
 
     update(dt: number, world: ECSWorld): void {
         if (world.isGameOver() || world.isPaused()) return;
@@ -74,6 +72,10 @@ export class CombatSystem implements ISystem {
         const bulletStore = world.getStore(BulletComp);
         if (!bulletStore) return;
 
+        const hitRadius = GameConfig.skills.bullet.hitRadius;
+        const hitDistSq = hitRadius * hitRadius;
+        const knockbackSpeed = GameConfig.skills.bullet.knockbackSpeed;
+
         const enemies = world.query(Transform, EnemyTag, Health);
 
         for (const [bid, bullet] of bulletStore) {
@@ -88,19 +90,19 @@ export class CombatSystem implements ISystem {
                 const dx = btf.x - etf.x;
                 const dy = btf.y - etf.y;
 
-                if (dx * dx + dy * dy < this.BULLET_HIT_DIST_SQ) {
+                if (dx * dx + dy * dy < hitDistSq) {
                     hp.hp -= bullet.damage;
 
                     // 施加击退：沿子弹飞行方向推开敌人
                     const existing = world.getComponent(eid, Knockback);
                     if (existing) {
                         // 叠加到已有击退上（多发子弹命中会累积，有上限由衰减自然控制）
-                        existing.vx += bullet.dirX * this.BULLET_KNOCKBACK_SPEED;
-                        existing.vy += bullet.dirY * this.BULLET_KNOCKBACK_SPEED;
+                        existing.vx += bullet.dirX * knockbackSpeed;
+                        existing.vy += bullet.dirY * knockbackSpeed;
                     } else {
                         world.addComponent(eid, new Knockback(
-                            bullet.dirX * this.BULLET_KNOCKBACK_SPEED,
-                            bullet.dirY * this.BULLET_KNOCKBACK_SPEED,
+                            bullet.dirX * knockbackSpeed,
+                            bullet.dirY * knockbackSpeed,
                             8,
                         ));
                     }
@@ -116,6 +118,9 @@ export class CombatSystem implements ISystem {
         const players = world.query(Transform, PlayerTag, Health);
         const enemies = world.query(Transform, EnemyTag, Health);
 
+        const hitRadius = GameConfig.skills.contact.enemyPlayerHitRadius;
+        const hitDistSq = hitRadius * hitRadius;
+
         for (const pid of players) {
             const php = world.getComponent(pid, Health)!;
             if (php.hp <= 0 || php.invincibleTimer > 0) continue;
@@ -130,7 +135,7 @@ export class CombatSystem implements ISystem {
                 const dx = ptf.x - etf.x;
                 const dy = ptf.y - etf.y;
 
-                if (dx * dx + dy * dy < this.ENEMY_HIT_DIST_SQ) {
+                if (dx * dx + dy * dy < hitDistSq) {
                     const enemy = world.getComponent(eid, EnemyTag)!;
                     php.hp -= enemy.damage;
                     php.invincibleTimer = php.invincibleTime;

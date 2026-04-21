@@ -1,0 +1,2 @@
+id,baseHp,baseDamage,baseMoveSpeed,baseExpReward,colliderRadius,hpScalePerLevel,damageScalePerLevel,speedScalePerLevel,expBonusPerLevel
+default,40,10,80,5,18,0.2,0.1,0.05,1

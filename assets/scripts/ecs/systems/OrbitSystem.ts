@@ -4,6 +4,7 @@ import {
 } from '../Components';
 import { OrbitAttack, OrbitingSword } from '../SkillComponents';
 import { createOrbitingSword } from '../EntityFactory';
+import { GameConfig } from '../GameConfig';
 
 /**
  * OrbitSystem - 环绕飞剑
@@ -16,11 +17,6 @@ import { createOrbitingSword } from '../EntityFactory';
  * 4. 若 owner 不存在（玩家死亡），销毁所有飞剑
  */
 export class OrbitSystem implements ISystem {
-
-    private readonly HIT_DIST_SQ = 25 * 25;
-    /** 每把剑命中单个敌人后的冷却，防止一直碾压同一目标 */
-    private readonly HIT_COOLDOWN = 0.4;
-    private readonly KNOCKBACK_SPEED = 180;
 
     update(dt: number, world: ECSWorld): void {
         if (world.isGameOver() || world.isPaused()) return;
@@ -63,6 +59,11 @@ export class OrbitSystem implements ISystem {
         const swordStore = world.getStore(OrbitingSword);
         if (!swordStore) return;
 
+        const orbitCfg = GameConfig.skills.orbit;
+        const hitDistSq = orbitCfg.hitRadius * orbitCfg.hitRadius;
+        const hitCooldown = orbitCfg.hitCooldown;
+        const knockbackSpeed = orbitCfg.knockbackSpeed;
+
         const enemies = world.query(Transform, EnemyTag, Health);
 
         for (const [sid, sword] of swordStore) {
@@ -92,10 +93,10 @@ export class OrbitSystem implements ISystem {
                 const etf = world.getComponent(eid, Transform)!;
                 const dx = etf.x - stf.x;
                 const dy = etf.y - stf.y;
-                if (dx * dx + dy * dy >= this.HIT_DIST_SQ) continue;
+                if (dx * dx + dy * dy >= hitDistSq) continue;
 
                 hp.hp -= sword.damage;
-                sword.hitCooldown = this.HIT_COOLDOWN;
+                sword.hitCooldown = hitCooldown;
 
                 // 击退方向：从玩家指向敌人（向外推）
                 const ox = etf.x - otf.x;
@@ -105,12 +106,12 @@ export class OrbitSystem implements ISystem {
                 const ny = oy / olen;
                 const kb = world.getComponent(eid, Knockback);
                 if (kb) {
-                    kb.vx += nx * this.KNOCKBACK_SPEED;
-                    kb.vy += ny * this.KNOCKBACK_SPEED;
+                    kb.vx += nx * knockbackSpeed;
+                    kb.vy += ny * knockbackSpeed;
                 } else {
                     world.addComponent(eid, new Knockback(
-                        nx * this.KNOCKBACK_SPEED,
-                        ny * this.KNOCKBACK_SPEED,
+                        nx * knockbackSpeed,
+                        ny * knockbackSpeed,
                         8,
                     ));
                 }

@@ -1,6 +1,7 @@
 import { _decorator, Component } from 'cc';
 import { ECSWorld } from './ecs/World';
 import { PrefabPool } from './ecs/PrefabPool';
+import { GameConfig } from './ecs/GameConfig';
 import { createPlayer, createSpawner, createEnemy } from './ecs/EntityFactory';
 import { InputSystem } from './ecs/systems/InputSystem';
 import { MovementSystem } from './ecs/systems/MovementSystem';
@@ -23,7 +24,7 @@ const { ccclass } = _decorator;
  * 将此组件挂载到 Canvas 节点上，然后运行。
  *
  * 启动流程：
- * 1. start() 先加载所有实体预制体（PrefabPool.loadAll）
+ * 1. start() 并行加载预制体（PrefabPool）和 CSV 配置（GameConfig）
  * 2. 加载完毕后再构建 World、注册 System、创建初始实体
  * 3. 加载期间 update() 跳过（_world 为空）
  */
@@ -33,10 +34,13 @@ export class GameEntry extends Component {
     private _world: ECSWorld | null = null;
 
     start(): void {
-        PrefabPool.loadAll()
+        Promise.all([
+            PrefabPool.loadAll(),
+            GameConfig.loadAll(),
+        ])
             .then(() => this.initGame())
             .catch(err => {
-                console.error('[GameEntry] 预制体加载失败，游戏无法启动', err);
+                console.error('[GameEntry] 启动资源加载失败，游戏无法启动', err);
             });
     }
 
@@ -60,11 +64,14 @@ export class GameEntry extends Component {
         const playerEid = createPlayer(world, 0, 0);
         createSpawner(world, playerEid);
 
-        // 初始生成 3 个敌人
+        // 初始生成若干敌人（数量来自 Spawner.csv）
         const ptf = world.getComponent(playerEid, Transform)!;
-        for (let i = 0; i < 3; i++) {
+        const spawnerCfg = GameConfig.spawner;
+        const initialCount = spawnerCfg.initialSpawnCount;
+        for (let i = 0; i < initialCount; i++) {
             const angle = Math.random() * Math.PI * 2;
-            const dist = 300 + Math.random() * 200;
+            const dist = spawnerCfg.minSpawnDistance
+                + Math.random() * (spawnerCfg.spawnRadius - spawnerCfg.minSpawnDistance);
             createEnemy(
                 world,
                 ptf.x + Math.cos(angle) * dist,

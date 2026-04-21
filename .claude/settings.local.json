@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git *)",
+      "Bash(npx --version)",
+      "Bash(node_modules/.bin/tsc --noEmit -p tsconfig.json)",
+      "Bash(node_modules/.bin/tsc --noEmit -p tsconfig.json --ignoreDeprecations \"6.0\")",
+      "Bash(uuidgen)",
+      "Bash(python3 -c \"import uuid; print\\(uuid.uuid4\\(\\)\\); print\\(uuid.uuid4\\(\\)\\); print\\(uuid.uuid4\\(\\)\\); print\\(uuid.uuid4\\(\\)\\); print\\(uuid.uuid4\\(\\)\\)\")"
+    ]
+  }
+}

@@ -1,10 +1,13 @@
 import { ISystem, ECSWorld } from '../World';
 import { Transform, EnemyTag, SpawnerComp } from '../Components';
 import { createEnemy } from '../EntityFactory';
+import { GameConfig } from '../GameConfig';
 
 /**
  * SpawnerSystem - 定时生成敌人 + 难度递增
  * Priority: 40
+ *
+ * 难度曲线全部来自 GameConfig.spawner（CSV）。
  */
 export class SpawnerSystem implements ISystem {
 
@@ -14,14 +17,16 @@ export class SpawnerSystem implements ISystem {
         const store = world.getStore(SpawnerComp);
         if (!store) return;
 
+        const cfg = GameConfig.spawner;
+
         for (const [_eid, spawner] of store) {
-            // 难度递增：每 15 秒
+            // 难度递增：每 difficultyIntervalSeconds 秒
             spawner.difficultyTimer += dt;
-            if (spawner.difficultyTimer >= 15) {
-                spawner.difficultyTimer -= 15;
+            if (spawner.difficultyTimer >= cfg.difficultyIntervalSeconds) {
+                spawner.difficultyTimer -= cfg.difficultyIntervalSeconds;
                 spawner.difficulty++;
-                spawner.interval = Math.max(0.5, spawner.interval * 0.9);
-                spawner.maxCount = Math.min(50, spawner.maxCount + 3);
+                spawner.interval = Math.max(cfg.minInterval, spawner.interval * cfg.spawnIntervalDecay);
+                spawner.maxCount = Math.min(cfg.maxCountCap, spawner.maxCount + cfg.maxCountIncrement);
             }
 
             // 生成计时

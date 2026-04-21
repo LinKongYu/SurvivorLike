@@ -4,6 +4,7 @@ import {
 } from '../Components';
 import { BombAttack, Bomb, Explosion } from '../SkillComponents';
 import { createBomb, createExplosion } from '../EntityFactory';
+import { GameConfig } from '../GameConfig';
 
 /**
  * BombSystem - 投掷炸弹 + 爆炸
@@ -15,8 +16,6 @@ import { createBomb, createExplosion } from '../EntityFactory';
  * 3. Explosion 实体第一帧对范围内所有敌人造成伤害 + 向外击退；lifeTime 到期后销毁
  */
 export class BombSystem implements ISystem {
-
-    private readonly EXPLOSION_KNOCKBACK = 400;
 
     update(dt: number, world: ECSWorld): void {
         if (world.isGameOver() || world.isPaused()) return;
@@ -38,7 +37,7 @@ export class BombSystem implements ISystem {
             const ptf = world.getComponent(pid, Transform)!;
             // 多枚炸弹均分角度投掷在玩家附近
             const step = (Math.PI * 2) / atk.count;
-            const throwDist = atk.count > 1 ? 60 : 0;
+            const throwDist = atk.count > 1 ? GameConfig.skills.bomb.throwDistance : 0;
             for (let i = 0; i < atk.count; i++) {
                 const angle = i * step + Math.random() * 0.3;
                 const ox = Math.cos(angle) * throwDist;
@@ -70,6 +69,7 @@ export class BombSystem implements ISystem {
         const store = world.getStore(Explosion);
         if (!store) return;
 
+        const knockback = GameConfig.skills.bomb.explosion.knockbackSpeed;
         const enemies = world.query(Transform, EnemyTag, Health);
 
         for (const [exid, exp] of store) {
@@ -103,12 +103,12 @@ export class BombSystem implements ISystem {
                     const ny = dy / dist;
                     const kb = world.getComponent(eid, Knockback);
                     if (kb) {
-                        kb.vx += nx * this.EXPLOSION_KNOCKBACK;
-                        kb.vy += ny * this.EXPLOSION_KNOCKBACK;
+                        kb.vx += nx * knockback;
+                        kb.vy += ny * knockback;
                     } else {
                         world.addComponent(eid, new Knockback(
-                            nx * this.EXPLOSION_KNOCKBACK,
-                            ny * this.EXPLOSION_KNOCKBACK,
+                            nx * knockback,
+                            ny * knockback,
                             7,
                         ));
                     }

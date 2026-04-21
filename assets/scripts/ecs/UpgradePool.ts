@@ -15,6 +15,7 @@
 import { ECSWorld } from './World';
 import { AutoAttack } from './Components';
 import { BladeAttack, OrbitAttack, BombAttack } from './SkillComponents';
+import { GameConfig } from './GameConfig';
 
 export interface UpgradeDef {
     id: string;
@@ -31,7 +32,13 @@ export const UPGRADE_POOL: UpgradeDef[] = [
         name: '解锁·刀',
         desc: '前方扇形挥砍',
         canApply: (w, eid) => !w.hasComponent(eid, BladeAttack),
-        apply: (w, eid) => { w.addComponent(eid, new BladeAttack()); },
+        apply: (w, eid) => {
+            const c = GameConfig.skills.blade;
+            w.addComponent(eid, new BladeAttack(
+                c.cooldown, c.damage, c.range,
+                c.arcDegrees * Math.PI / 180, c.count,
+            ));
+        },
     },
     {
         id: 'unlock_orbit',
@@ -39,7 +46,10 @@ export const UPGRADE_POOL: UpgradeDef[] = [
         desc: '环绕旋转攻击',
         canApply: (w, eid) => !w.hasComponent(eid, OrbitAttack),
         apply: (w, eid) => {
-            const atk = new OrbitAttack();
+            const c = GameConfig.skills.orbit;
+            const atk = new OrbitAttack(
+                c.count, c.damage, c.orbitRadius, c.angularSpeed,
+            );
             atk.dirty = true;
             w.addComponent(eid, atk);
         },
@@ -49,7 +59,12 @@ export const UPGRADE_POOL: UpgradeDef[] = [
         name: '解锁·炸弹',
         desc: '投掷延迟爆炸',
         canApply: (w, eid) => !w.hasComponent(eid, BombAttack),
-        apply: (w, eid) => { w.addComponent(eid, new BombAttack()); },
+        apply: (w, eid) => {
+            const c = GameConfig.skills.bomb;
+            w.addComponent(eid, new BombAttack(
+                c.cooldown, c.damage, c.fuseTime, c.blastRadius, c.count,
+            ));
+        },
     },
 
     // ─── 射击（AutoAttack）升级 ───

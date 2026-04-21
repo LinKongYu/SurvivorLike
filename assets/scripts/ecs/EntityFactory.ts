@@ -2,8 +2,8 @@
  * 实体工厂 - 创建预配置的实体
  * 新增英雄/怪物类型只需添加新工厂函数
  *
- * 所有可视实体都通过 Render 组件引用 PrefabPool 中的预制体名称；
- * 外观（Sprite/图片/颜色）由用户在编辑器里的预制体中配置。
+ * 所有数值默认来自 GameConfig（CSV 配置表）；外观（Sprite/图片/颜色）
+ * 由用户在编辑器里的预制体中配置。
  */
 
 import { ECSWorld } from './World';
@@ -15,16 +15,23 @@ import {
 import {
     BladeHitbox, OrbitingSword, Bomb, Explosion,
 } from './SkillComponents';
+import { GameConfig } from './GameConfig';
 
 export function createPlayer(world: ECSWorld, x: number, y: number): number {
+    const cfg = GameConfig.player;
+    const atk = cfg.initialAttack;
+
     const eid = world.createEntity();
     world.addComponent(eid, new Transform(x, y));
     world.addComponent(eid, new Render('Player'));
-    world.addComponent(eid, new Health(100, 100, 0.5));
-    world.addComponent(eid, new PlayerTag(200));
+    world.addComponent(eid, new Health(cfg.hp, cfg.hp, cfg.invincibleTime));
+    world.addComponent(eid, new PlayerTag(cfg.moveSpeed));
     world.addComponent(eid, new PlayerInput());
-    world.addComponent(eid, new AutoAttack(0.5, 400, 20, 500));
-    world.addComponent(eid, new Level(1, 0, 10));
+    world.addComponent(eid, new AutoAttack(
+        atk.cooldown, atk.range, atk.damage, atk.bulletSpeed,
+        atk.count, atk.spreadAngle,
+    ));
+    world.addComponent(eid, new Level(1, 0, cfg.level.initialExpToNext));
     return eid;
 }
 
@@ -32,21 +39,24 @@ export function createEnemy(
     world: ECSWorld, x: number, y: number,
     playerEid: number, difficulty: number,
 ): number {
-    const hpMul = 1 + (difficulty - 1) * 0.2;
-    const dmgMul = 1 + (difficulty - 1) * 0.1;
-    const spdMul = 1 + (difficulty - 1) * 0.05;
+    const cfg = GameConfig.enemyDefault;
+    const step = difficulty - 1;
+    const hpMul = 1 + step * cfg.hpScalePerLevel;
+    const dmgMul = 1 + step * cfg.damageScalePerLevel;
+    const spdMul = 1 + step * cfg.speedScalePerLevel;
+    const hp = Math.floor(cfg.baseHp * hpMul);
 
     const eid = world.createEntity();
     world.addComponent(eid, new Transform(x, y));
     world.addComponent(eid, new Render('Enemy'));
-    world.addComponent(eid, new Health(Math.floor(40 * hpMul), Math.floor(40 * hpMul)));
+    world.addComponent(eid, new Health(hp, hp));
     world.addComponent(eid, new EnemyTag(
-        Math.floor(10 * dmgMul),
-        5 + difficulty,
-        80 * spdMul,
+        Math.floor(cfg.baseDamage * dmgMul),
+        cfg.baseExpReward + step * cfg.expBonusPerLevel,
+        cfg.baseMoveSpeed * spdMul,
     ));
     world.addComponent(eid, new ChaseTarget(playerEid));
-    world.addComponent(eid, new Collider(18));
+    world.addComponent(eid, new Collider(cfg.colliderRadius));
     return eid;
 }
 
@@ -56,25 +66,33 @@ export function createBullet(
     dirX: number, dirY: number,
     damage: number, speed: number = 500,
 ): number {
+    const bulletCfg = GameConfig.skills.bullet;
     const eid = world.createEntity();
     world.addComponent(eid, new Transform(x, y));
     world.addComponent(eid, new Render('Bullet'));
-    world.addComponent(eid, new BulletComp(damage, 1.5, dirX, dirY, speed));
+    world.addComponent(eid, new BulletComp(damage, bulletCfg.lifeTime, dirX, dirY, speed));
     return eid;
 }
 
 export function createExpOrb(world: ECSWorld, x: number, y: number, value: number): number {
+    const orbCfg = GameConfig.skills.expOrb;
     const eid = world.createEntity();
     world.addComponent(eid, new Transform(x, y));
     world.addComponent(eid, new Render('ExpOrb'));
-    const orb = world.addComponent(eid, new ExpOrbComp(value));
+    const orb = world.addComponent(eid, new ExpOrbComp(
+        value, orbCfg.attractRange, orbCfg.attractSpeed,
+    ));
     orb.baseY = y;
     return eid;
 }
 
 export function createSpawner(world: ECSWorld, playerEid: number): number {
+    const cfg = GameConfig.spawner;
     const eid = world.createEntity();
-    world.addComponent(eid, new SpawnerComp(2.0, 20, 1, 500, 300, playerEid));
+    world.addComponent(eid, new SpawnerComp(
+        cfg.initialInterval, cfg.initialMaxCount, 1,
+        cfg.spawnRadius, cfg.minSpawnDistance, playerEid,
+    ));
     return eid;
 }
 
@@ -91,8 +109,9 @@ export function createBladeHitbox(
     x: number, y: number,
     facingAngle: number,
     range: number, arc: number,
-    damage: number, lifeTime: number = 0.25,
+    damage: number,
 ): number {
+    const lifeTime = GameConfig.skills.blade.lifeTime;
     const eid = world.createEntity();
     world.addComponent(eid, new Transform(x, y));
     // range 是半径，渲染节点用直径作为 contentSize
@@ -145,8 +164,9 @@ export function createBomb(
  */
 export function createExplosion(
     world: ECSWorld, x: number, y: number,
-    radius: number, damage: number, lifeTime: number = 0.35,
+    radius: number, damage: number,
 ): number {
+    const lifeTime = GameConfig.skills.bomb.explosion.lifeTime;
     const eid = world.createEntity();
     world.addComponent(eid, new Transform(x, y));
     world.addComponent(eid, new Render('Explosion', 0, radius * 2, radius * 2));
