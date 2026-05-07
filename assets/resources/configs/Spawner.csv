@@ -1,2 +1,3 @@
 initialInterval,initialMaxCount,spawnRadius,minSpawnDistance,initialSpawnCount,difficultyIntervalSeconds,spawnIntervalDecay,minInterval,maxCountIncrement,maxCountCap
+# 初始生成间隔(秒),初始场上敌人上限,生成圆环外径,生成圆环内径(避免在玩家身上刷),开局预生成数量,难度递增间隔(秒),每次难度递增时间隔乘数(<1变快),最小生成间隔(秒),每次难度递增时上限增加,场上敌人数硬上限
 2.0,20,500,300,3,15,0.9,0.5,3,50

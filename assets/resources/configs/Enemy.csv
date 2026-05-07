@@ -1,2 +1,3 @@
 id,baseHp,baseDamage,baseMoveSpeed,baseExpReward,colliderRadius,hpScalePerLevel,damageScalePerLevel,speedScalePerLevel,expBonusPerLevel
+# 敌人ID(代码用此索引),基础生命,基础接触伤害,基础移动速度,死亡掉落经验,碰撞半径(用于软分离),每级生命增长比例,每级伤害增长比例,每级速度增长比例,每级额外经验奖励
 default,40,10,80,5,18,0.2,0.1,0.05,1

@@ -1,30 +1,66 @@
 skill,key,value
+# 技能ID,参数名,数值
+# ── 子弹(自动射击) ──
 bullet,lifeTime,1.5
+# bullet.lifeTime: 子弹存在时间(秒)，超时自动销毁
 bullet,hitRadius,30
+# bullet.hitRadius: 子弹命中敌人的判定半径(像素)
 bullet,knockbackSpeed,350
+# bullet.knockbackSpeed: 子弹命中后施加的击退初速度(像素/秒)
+# ── 经验球 ──
 expOrb,attractRange,120
+# expOrb.attractRange: 玩家进入此距离内开始吸取(像素)
 expOrb,attractSpeed,300
+# expOrb.attractSpeed: 被吸引时向玩家飞行速度(像素/秒)
 expOrb,collectDistance,20
+# expOrb.collectDistance: 进入此距离则收集成功(像素)
+# ── 玩家与敌人接触判定 ──
 contact,enemyPlayerHitRadius,40
+# contact.enemyPlayerHitRadius: 敌人对玩家造成接触伤害的判定半径(像素)
+# ── 刀(扇形挥砍) ──
 blade,cooldown,1.0
+# blade.cooldown: 挥砍冷却(秒)
 blade,damage,30
+# blade.damage: 单次挥砍伤害
 blade,range,140
+# blade.range: 扇形长度/半径(像素)
 blade,arcDegrees,90
+# blade.arcDegrees: 扇形张角(度)，配置时用度，运行时换算为弧度
 blade,count,1
+# blade.count: 同时挥出的扇形数量(>1时围绕玩家均分360°)
 blade,lifeTime,0.25
+# blade.lifeTime: 扇形伤害区存活时间(秒)
 blade,knockbackSpeed,250
+# blade.knockbackSpeed: 命中击退初速度(像素/秒)
+# ── 飞剑(环绕) ──
 orbit,count,2
+# orbit.count: 环绕飞剑数量
 orbit,damage,10
+# orbit.damage: 单次命中伤害
 orbit,orbitRadius,100
+# orbit.orbitRadius: 环绕半径(像素)
 orbit,angularSpeed,3
+# orbit.angularSpeed: 旋转角速度(弧度/秒)
 orbit,hitCooldown,0.4
+# orbit.hitCooldown: 同把剑命中后再次造成伤害的冷却(秒)
 orbit,hitRadius,25
+# orbit.hitRadius: 命中判定半径(像素)
 orbit,knockbackSpeed,180
+# orbit.knockbackSpeed: 命中击退初速度(像素/秒)
+# ── 炸弹(投掷+延时爆炸) ──
 bomb,cooldown,3.0
+# bomb.cooldown: 投弹冷却(秒)
 bomb,damage,50
+# bomb.damage: 爆炸范围伤害
 bomb,fuseTime,1.0
+# bomb.fuseTime: 引信时间(秒)，落地后多久爆炸
 bomb,blastRadius,150
+# bomb.blastRadius: 爆炸伤害半径(像素)
 bomb,count,1
+# bomb.count: 单次冷却投弹数量
 bomb,throwDistance,60
+# bomb.throwDistance: 多枚同时投弹时离玩家的距离(像素)，count=1时为0
 bomb,explosion.lifeTime,0.35
+# bomb.explosion.lifeTime: 爆炸伤害圈存活时间(秒)，仅首帧造成伤害
 bomb,explosion.knockbackSpeed,400
+# bomb.explosion.knockbackSpeed: 爆炸击退初速度(像素/秒)
