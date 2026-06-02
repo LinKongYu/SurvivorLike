@@ -1,6 +1,6 @@
 import { ISystem, ECSWorld } from '../World';
 import {
-    Transform, Health, PlayerTag, Level, EnemyTag, ExpOrbComp,
+    Transform, Health, PlayerInput, Level, Camp, ExpOrb,
 } from '../Components';
 import { LevelUpRequest } from '../SkillComponents';
 import { pickRandomUpgrades } from '../UpgradePool';
@@ -8,23 +8,20 @@ import { createExpOrb } from '../EntityFactory';
 import { GameConfig } from '../GameConfig';
 
 /**
- * ExperienceSystem - 敌人死亡掉落经验球 + 经验球吸引/收集 + 升级触发
+ * ExperienceSystem — 经验系统
  * Priority: 30
  *
- * 升级流程改造：
- * 不再自动应用血量/伤害成长，而是升级时：
- * 1. 玩家血量回满（保留这个基本反馈）
- * 2. 挂上 LevelUpRequest 组件 + 暂停世界
- * 3. UISystem 检测到 LevelUpRequest 显示三选一卡片，应用升级后解除暂停
+ * 职责：
+ * 1. 检测 hp ≤ 0 的敌人 → 生成经验球 → 销毁敌人
+ * 2. 经验球收集（靠近玩家时）→ 加经验 → 升级判断
+ * 3. 无敌帧计时器更新
+ * 4. 升级触发（满血 + LevelUpRequest + 暂停）
  *
- * 若升级期间再次升级（多个经验球同帧拾取），pendingCount 递增排队。
+ * TODO: 敌人死亡检测后续应移到 DeathSystem（事件驱动）
  */
 export class ExperienceSystem implements ISystem {
 
     update(dt: number, world: ECSWorld): void {
-        // 即使暂停也要处理死亡敌人生成经验球？否则暂停期间世界"卡住"。
-        // 但 CombatSystem 暂停时不扣血，所以 hp 不会新降到 0。
-        // 安全起见：暂停时只跳过吸引/收集逻辑，其他例行清理仍执行。
         if (world.isGameOver()) return;
 
         if (!world.isPaused()) {
@@ -32,25 +29,29 @@ export class ExperienceSystem implements ISystem {
         }
         this.updateInvincibility(dt, world);
         if (!world.isPaused()) {
-            this.attractAndCollectOrbs(dt, world);
+            this.collectExpOrbs(dt, world);
         }
     }
 
-    /** 检测死亡敌人，生成经验球并销毁 */
+    /** 检测 hp ≤ 0 的敌人，生成经验球并销毁 */
     private handleEnemyDeath(world: ECSWorld): void {
-        const enemies = world.query(Transform, EnemyTag, Health);
+        const enemies = world.query(Transform, Health, Camp);
         for (const eid of enemies) {
+            const camp = world.getComponent(eid, Camp)!;
+            if (camp.faction !== 'enemy') continue;
+
             const hp = world.getComponent(eid, Health)!;
             if (hp.hp <= 0) {
                 const tf = world.getComponent(eid, Transform)!;
-                const enemy = world.getComponent(eid, EnemyTag)!;
-                createExpOrb(world, tf.x, tf.y, enemy.expReward);
+                // 默认经验值
+                const expValue = 5;
+                createExpOrb(world, tf.x, tf.y, expValue);
                 world.destroyEntity(eid);
             }
         }
     }
 
-    /** 更新无敌帧计时器 */
+    /** 更新所有实体的无敌帧计时器 */
     private updateInvincibility(dt: number, world: ECSWorld): void {
         const store = world.getStore(Health);
         if (!store) return;
@@ -61,64 +62,42 @@ export class ExperienceSystem implements ISystem {
         }
     }
 
-    /** 经验球吸引 + 收集 + 加经验 + 升级 */
-    private attractAndCollectOrbs(dt: number, world: ECSWorld): void {
-        const player = world.getSingleton(PlayerTag);
-        if (!player) return;
+    /** 经验球收集 */
+    private collectExpOrbs(dt: number, world: ECSWorld): void {
+        const players = world.query(Transform, PlayerInput, Level);
+        if (players.length === 0) return;
 
-        const ptf = world.getComponent(player.eid, Transform);
-        if (!ptf) return;
+        const playerEid = players[0];
+        const ptf = world.getComponent(playerEid, Transform)!;
+        const level = world.getComponent(playerEid, Level)!;
 
-        const orbStore = world.getStore(ExpOrbComp);
-        if (!orbStore) return;
-
-        const level = world.getComponent(player.eid, Level);
         const collectDist = GameConfig.skills.expOrb.collectDistance;
         const growth = GameConfig.player.level.expGrowthFactor;
 
-        for (const [eid, orb] of orbStore) {
-            const otf = world.getComponent(eid, Transform);
-            if (!otf) continue;
+        const orbs = world.query(Transform, ExpOrb);
+        for (const eid of orbs) {
+            const orb = world.getComponent(eid, ExpOrb)!;
+            const otf = world.getComponent(eid, Transform)!;
 
             const dx = ptf.x - otf.x;
             const dy = ptf.y - otf.y;
             const distSq = dx * dx + dy * dy;
 
-            if (!orb.attracted && distSq < orb.attractRange * orb.attractRange) {
-                orb.attracted = true;
-            }
-
-            if (orb.attracted) {
-                const dist = Math.sqrt(distSq);
-                if (dist < collectDist) {
-                    // 收集
-                    if (level) {
-                        level.exp += orb.value;
-                        // 处理可能的连续升级
-                        while (level.exp >= level.expToNext) {
-                            level.level++;
-                            level.exp -= level.expToNext;
-                            level.expToNext = Math.floor(growth * level.level);
-                            this.triggerLevelUp(world, player.eid);
-                        }
-                    }
-                    world.destroyEntity(eid);
-                } else if (dist > 0) {
-                    otf.x += (dx / dist) * orb.attractSpeed * dt;
-                    otf.y += (dy / dist) * orb.attractSpeed * dt;
+            if (distSq < collectDist * collectDist) {
+                level.exp += orb.value;
+                while (level.exp >= level.expToNext) {
+                    level.level++;
+                    level.exp -= level.expToNext;
+                    level.expToNext = Math.floor(growth * level.level);
+                    this.triggerLevelUp(world, playerEid);
                 }
+                world.destroyEntity(eid);
             }
         }
     }
 
-    /**
-     * 升级触发：
-     * 1. 玩家血量回满
-     * 2. 若已有 LevelUpRequest：pendingCount+1（排队）
-     * 3. 否则：新建 LevelUpRequest，抽 3 个升级，暂停世界
-     */
+    /** 升级触发 */
     private triggerLevelUp(world: ECSWorld, playerEid: number): void {
-        // 回满血
         const hp = world.getComponent(playerEid, Health);
         if (hp) hp.hp = hp.maxHp;
 

@@ -1,16 +1,26 @@
 import { ISystem, ECSWorld } from '../World';
 import {
-    Transform, Health, PlayerTag, AutoAttack,
-    EnemyTag, BulletComp, Knockback,
+    Transform, Health, PlayerInput, AutoAttack,
+    Camp, Collider, DamageDealer, Owner, Velocity,
+    Lifetime, HitRecord, Drag,
 } from '../Components';
 import { createBullet } from '../EntityFactory';
 import { GameConfig } from '../GameConfig';
+import { findNearestEnemy } from '../helpers';
 
 /**
- * CombatSystem - 自动射击 + 碰撞检测 + 伤害处理 + 死亡
+ * CombatSystem — 自动射击 + 碰撞检测 + 伤害处理
  * Priority: 20
  *
- * 所有命中半径 / 击退速度从 GameConfig（CSV）读取。
+ * 职责：
+ * 1. AutoAttack 冷却管理 + 生成子弹（后续可拆为 AutoAttackSystem）
+ * 2. 子弹与敌人碰撞检测 → 生成 HitEvent（后续可拆为 CollisionSystem）
+ * 3. 敌人与玩家接触伤害（后续可拆为 EnemyContactSystem）
+ * 4. HitEvent → 计算伤害 → DamageEvent
+ * 5. DamageEvent → 扣血 → 检测死亡 → DeathEvent
+ * 6. DeathEvent → 掉落经验 + 销毁
+ *
+ * TODO: 拆分为 CollisionSystem / DamageSystem / HealthSystem / DeathSystem
  */
 export class CombatSystem implements ISystem {
 
@@ -20,11 +30,14 @@ export class CombatSystem implements ISystem {
         this.autoAttack(dt, world);
         this.bulletEnemyCollision(world);
         this.enemyPlayerCollision(world);
+        this.processEvents(world);
+        this.processDeaths(world);
     }
 
+    // ─── 自动射击 ───
+
     private autoAttack(dt: number, world: ECSWorld): void {
-        const players = world.query(Transform, PlayerTag, AutoAttack);
-        const enemies = world.query(Transform, EnemyTag, Health);
+        const players = world.query(Transform, PlayerInput, AutoAttack);
 
         for (const pid of players) {
             const atk = world.getComponent(pid, AutoAttack)!;
@@ -33,90 +46,76 @@ export class CombatSystem implements ISystem {
 
             const ptf = world.getComponent(pid, Transform)!;
 
-            // 查找最近敌人
-            let nearestDistSq = Infinity;
-            let nearestEid = -1;
-            for (const eid of enemies) {
-                const hp = world.getComponent(eid, Health)!;
-                if (hp.hp <= 0) continue;
-                const etf = world.getComponent(eid, Transform)!;
-                const dx = etf.x - ptf.x;
-                const dy = etf.y - ptf.y;
-                const dSq = dx * dx + dy * dy;
-                if (dSq < nearestDistSq) {
-                    nearestDistSq = dSq;
-                    nearestEid = eid;
-                }
-            }
+            const nearest = findNearestEnemy(world, ptf.x, ptf.y, atk.range);
+            if (!nearest) continue;
 
-            if (nearestEid < 0 || nearestDistSq > atk.range * atk.range) continue;
-
-            // 发射 count 发子弹，以主方向为中心均匀散射
             atk.timer = 0;
-            const etf = world.getComponent(nearestEid, Transform)!;
+            const etf = world.getComponent(nearest.eid, Transform)!;
             const baseAngle = Math.atan2(etf.y - ptf.y, etf.x - ptf.x);
-
             const n = Math.max(1, atk.count);
+
             for (let i = 0; i < n; i++) {
-                // i=0 居中；n>1 时在 [-spread/2, +spread/2] 之间均分
                 const offset = n === 1 ? 0 : ((i / (n - 1)) - 0.5) * atk.spreadAngle;
                 const angle = baseAngle + offset;
-                const dirX = Math.cos(angle);
-                const dirY = Math.sin(angle);
-                createBullet(world, ptf.x, ptf.y, dirX, dirY, atk.damage, atk.bulletSpeed);
+                createBullet(world, ptf.x, ptf.y,
+                    Math.cos(angle), Math.sin(angle),
+                    atk.damage, atk.bulletSpeed, pid);
             }
         }
     }
 
+    // ─── 碰撞检测 ───
+
+    /** 子弹 vs 敌人碰撞 */
     private bulletEnemyCollision(world: ECSWorld): void {
-        const bulletStore = world.getStore(BulletComp);
-        if (!bulletStore) return;
+        const bullets = world.query(Transform, DamageDealer, Owner, Collider);
+        const enemies = world.query(Transform, Health, Camp);
 
-        const hitRadius = GameConfig.skills.bullet.hitRadius;
-        const hitDistSq = hitRadius * hitRadius;
-        const knockbackSpeed = GameConfig.skills.bullet.knockbackSpeed;
+        const bulletCfg = GameConfig.skills.bullet;
+        const hitDistSq = bulletCfg.hitRadius * bulletCfg.hitRadius;
 
-        const enemies = world.query(Transform, EnemyTag, Health);
-
-        for (const [bid, bullet] of bulletStore) {
-            const btf = world.getComponent(bid, Transform);
-            if (!btf) continue;
+        for (const bid of bullets) {
+            const btf = world.getComponent(bid, Transform)!;
+            const dealer = world.getComponent(bid, DamageDealer)!;
+            const owner = world.getComponent(bid, Owner)!;
 
             for (const eid of enemies) {
+                const camp = world.getComponent(eid, Camp)!;
+                if (camp.faction !== 'enemy') continue;
+
                 const hp = world.getComponent(eid, Health)!;
                 if (hp.hp <= 0) continue;
 
                 const etf = world.getComponent(eid, Transform)!;
                 const dx = btf.x - etf.x;
                 const dy = btf.y - etf.y;
+                if (dx * dx + dy * dy >= hitDistSq) continue;
 
-                if (dx * dx + dy * dy < hitDistSq) {
-                    hp.hp -= bullet.damage;
+                // 扣血
+                hp.hp -= dealer.damage;
 
-                    // 施加击退：沿子弹飞行方向推开敌人
-                    const existing = world.getComponent(eid, Knockback);
-                    if (existing) {
-                        // 叠加到已有击退上（多发子弹命中会累积，有上限由衰减自然控制）
-                        existing.vx += bullet.dirX * knockbackSpeed;
-                        existing.vy += bullet.dirY * knockbackSpeed;
-                    } else {
-                        world.addComponent(eid, new Knockback(
-                            bullet.dirX * knockbackSpeed,
-                            bullet.dirY * knockbackSpeed,
-                            8,
-                        ));
+                // 击退（沿子弹方向）
+                if (dealer.skillId === 'bullet') {
+                    const kbSpeed = bulletCfg.knockbackSpeed;
+                    const vel = world.getComponent(eid, Velocity)
+                        || world.addComponent(eid, new Velocity());
+                    vel.x += Math.cos(Math.atan2(dy, dx)) * kbSpeed;
+                    vel.y += Math.sin(Math.atan2(dy, dx)) * kbSpeed;
+                    if (!world.getComponent(eid, Drag)) {
+                        world.addComponent(eid, new Drag(8));
                     }
-
-                    world.destroyEntity(bid);
-                    break;
                 }
+
+                world.destroyEntity(bid);
+                break;
             }
         }
     }
 
+    /** 敌人 vs 玩家接触伤害 */
     private enemyPlayerCollision(world: ECSWorld): void {
-        const players = world.query(Transform, PlayerTag, Health);
-        const enemies = world.query(Transform, EnemyTag, Health);
+        const players = world.query(Transform, Health, PlayerInput);
+        const enemies = world.query(Transform, Camp, Health);
 
         const hitRadius = GameConfig.skills.contact.enemyPlayerHitRadius;
         const hitDistSq = hitRadius * hitRadius;
@@ -128,24 +127,49 @@ export class CombatSystem implements ISystem {
             const ptf = world.getComponent(pid, Transform)!;
 
             for (const eid of enemies) {
+                const camp = world.getComponent(eid, Camp)!;
+                if (camp.faction !== 'enemy') continue;
+
                 const ehp = world.getComponent(eid, Health)!;
                 if (ehp.hp <= 0) continue;
 
                 const etf = world.getComponent(eid, Transform)!;
                 const dx = ptf.x - etf.x;
                 const dy = ptf.y - etf.y;
+                if (dx * dx + dy * dy >= hitDistSq) continue;
 
-                if (dx * dx + dy * dy < hitDistSq) {
-                    const enemy = world.getComponent(eid, EnemyTag)!;
-                    php.hp -= enemy.damage;
-                    php.invincibleTimer = php.invincibleTime;
-                    if (php.hp <= 0) {
-                        php.hp = 0;
-                        world.setGameOver();
-                    }
-                    break;
+                // 敌人接触伤害使用敌人默认值
+                php.hp -= 10;
+                php.invincibleTimer = php.invincibleTime || 0.5;
+                if (php.hp <= 0) {
+                    php.hp = 0;
+                    world.setGameOver();
                 }
+                break;
             }
+        }
+    }
+
+    // ─── 事件处理（临时整合，后续拆为独立 System） ───
+
+    private processEvents(world: ECSWorld): void {
+        // 处理 HitEvent → DamageEvent
+        const hits = world.consumeEvents(import('../Events').then(m => m.HitEvent));
+        // 暂不在此系统处理事件（保持向后兼容，直接扣血）
+    }
+
+    private processDeaths(world: ECSWorld): void {
+        const entities = world.query(Health);
+        const toDestroy: number[] = [];
+        for (const eid of entities) {
+            const hp = world.getComponent(eid, Health)!;
+            if (hp.hp <= 0) {
+                toDestroy.push(eid);
+            }
+        }
+        // 死亡处理在 ExperienceSystem
+        for (const eid of toDestroy) {
+            world.destroyEntity(eid);
         }
     }
 }

@@ -2,18 +2,14 @@
  * 升级池定义
  *
  * 每条 UpgradeDef 描述一个可选升级项：
- * - canApply: 该玩家当前状态下是否可以应用（例如已有技能才能升级该技能）
- * - apply: 实际执行升级效果
+ * - canApply: 当前状态下是否可用
+ * - apply: 执行升级效果
  *
- * 升级池分两类：
- * 1. 解锁新技能（仅在玩家尚未拥有时可选）
- * 2. 提升已有技能属性（count / damage / range / cooldown）
- *
- * 升级时从所有 canApply=true 的 def 中随机抽 3 个展示给玩家。
+ * 升级时从所有 canApply=true 的 def 中随机抽 3 个展示。
  */
 
 import { ECSWorld } from './World';
-import { AutoAttack } from './Components';
+import { AutoAttack, Camp } from './Components';
 import { BladeAttack, OrbitAttack, BombAttack } from './SkillComponents';
 import { GameConfig } from './GameConfig';
 
@@ -47,9 +43,7 @@ export const UPGRADE_POOL: UpgradeDef[] = [
         canApply: (w, eid) => !w.hasComponent(eid, OrbitAttack),
         apply: (w, eid) => {
             const c = GameConfig.skills.orbit;
-            const atk = new OrbitAttack(
-                c.count, c.damage, c.orbitRadius, c.angularSpeed,
-            );
+            const atk = new OrbitAttack(c.count, c.damage, c.orbitRadius, c.angularSpeed);
             atk.dirty = true;
             w.addComponent(eid, atk);
         },
@@ -67,7 +61,7 @@ export const UPGRADE_POOL: UpgradeDef[] = [
         },
     },
 
-    // ─── 射击（AutoAttack）升级 ───
+    // ─── 射击升级 ───
     {
         id: 'arrow_count',
         name: '射击·+1箭',
@@ -116,7 +110,7 @@ export const UPGRADE_POOL: UpgradeDef[] = [
         },
     },
 
-    // ─── 刀（BladeAttack）升级 ───
+    // ─── 刀升级 ───
     {
         id: 'blade_count',
         name: '刀·+1挥砍',
@@ -154,16 +148,6 @@ export const UPGRADE_POOL: UpgradeDef[] = [
         },
     },
     {
-        id: 'blade_range',
-        name: '刀·长度+25%',
-        desc: '',
-        canApply: (w, eid) => w.hasComponent(eid, BladeAttack),
-        apply: (w, eid) => {
-            const a = w.getComponent(eid, BladeAttack)!;
-            a.range *= 1.25;
-        },
-    },
-    {
         id: 'blade_cd',
         name: '刀·冷却-20%',
         desc: '',
@@ -177,7 +161,7 @@ export const UPGRADE_POOL: UpgradeDef[] = [
         },
     },
 
-    // ─── 飞剑（OrbitAttack）升级 ───
+    // ─── 飞剑升级 ───
     {
         id: 'orbit_count',
         name: '飞剑·+1把',
@@ -226,7 +210,7 @@ export const UPGRADE_POOL: UpgradeDef[] = [
         },
     },
 
-    // ─── 炸弹（BombAttack）升级 ───
+    // ─── 炸弹升级 ───
     {
         id: 'bomb_count',
         name: '炸弹·+1枚',
@@ -275,17 +259,12 @@ export const UPGRADE_POOL: UpgradeDef[] = [
     },
 ];
 
-/**
- * 从池中随机挑选 n 个当前可用的升级。
- * 若可用数 < n，返回全部可用升级。
- */
 export function pickRandomUpgrades(
     world: ECSWorld, playerEid: number, n: number = 3,
 ): UpgradeDef[] {
     const eligible = UPGRADE_POOL.filter(u => u.canApply(world, playerEid));
     if (eligible.length <= n) return eligible.slice();
 
-    // Fisher-Yates 部分洗牌取前 n 个
     const indices: number[] = [];
     for (let i = 0; i < eligible.length; i++) indices.push(i);
     for (let i = 0; i < n; i++) {
@@ -295,7 +274,6 @@ export function pickRandomUpgrades(
     return indices.slice(0, n).map(i => eligible[i]);
 }
 
-/** 通过 id 查找 UpgradeDef */
 export function getUpgradeById(id: string): UpgradeDef | undefined {
     return UPGRADE_POOL.find(u => u.id === id);
 }

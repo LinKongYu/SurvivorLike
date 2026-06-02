@@ -1,10 +1,12 @@
 import { input, Input, EventKeyboard, KeyCode } from 'cc';
 import { ISystem, ECSWorld } from '../World';
-import { PlayerInput } from '../Components';
+import { PlayerInput, Camp } from '../Components';
 
 /**
  * InputSystem - 读取键盘输入，写入 PlayerInput 组件
  * Priority: 0
+ *
+ * 由 PlayerControlSystem 消费 PlayerInput 并设置 Velocity。
  */
 export class InputSystem implements ISystem {
 
@@ -30,7 +32,6 @@ export class InputSystem implements ISystem {
             if (this._keys.has(KeyCode.KEY_A) || this._keys.has(KeyCode.ARROW_LEFT)) inp.moveX -= 1;
             if (this._keys.has(KeyCode.KEY_D) || this._keys.has(KeyCode.ARROW_RIGHT)) inp.moveX += 1;
 
-            // 归一化对角线
             if (inp.moveX !== 0 && inp.moveY !== 0) {
                 const len = Math.sqrt(inp.moveX * inp.moveX + inp.moveY * inp.moveY);
                 inp.moveX /= len;

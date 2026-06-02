@@ -1,19 +1,20 @@
 import { ISystem, ECSWorld } from '../World';
 import {
-    Transform, Health, PlayerTag, EnemyTag, Knockback,
+    Transform, Health, PlayerInput, Camp,
+    DamageDealer, Owner, Collider, HitRecord, Lifetime, Velocity, Drag,
 } from '../Components';
-import { BombAttack, Bomb, Explosion } from '../SkillComponents';
-import { createBomb, createExplosion } from '../EntityFactory';
+import { BombAttack, BombMarker, ExplosionMarker } from '../SkillComponents';
 import { GameConfig } from '../GameConfig';
 
 /**
- * BombSystem - 投掷炸弹 + 爆炸
+ * BombSystem — 炸弹 + 爆炸
  * Priority: 24
  *
- * 流程：
- * 1. 玩家持有 BombAttack，冷却结束时在玩家周围投掷 count 枚炸弹
- * 2. Bomb 实体计时到 fuseTime 后：销毁 Bomb、生成 Explosion 实体
- * 3. Explosion 实体第一帧对范围内所有敌人造成伤害 + 向外击退；lifeTime 到期后销毁
+ * 只负责触发逻辑：
+ * 1. tick BombAttack 冷却，到时生成 BombMarker 实体
+ * 2. tick BombMarker 引信，到时生成 ExplosionMarker 实体
+ *
+ * 炸弹/爆炸实体的伤害由 CombatSystem 的碰撞流程统一处理。
  */
 export class BombSystem implements ISystem {
 
@@ -22,12 +23,12 @@ export class BombSystem implements ISystem {
 
         this.triggerBombs(dt, world);
         this.tickBombs(dt, world);
-        this.resolveExplosions(dt, world);
+        this.tickExplosions(dt, world);
     }
 
-    /** 为持有 BombAttack 的玩家 tick 冷却，到时投掷 */
+    /** 持有 BombAttack 的玩家冷却到时投掷炸弹 */
     private triggerBombs(dt: number, world: ECSWorld): void {
-        const players = world.query(Transform, PlayerTag, BombAttack);
+        const players = world.query(Transform, PlayerInput, BombAttack);
         for (const pid of players) {
             const atk = world.getComponent(pid, BombAttack)!;
             atk.timer += dt;
@@ -35,86 +36,68 @@ export class BombSystem implements ISystem {
             atk.timer = 0;
 
             const ptf = world.getComponent(pid, Transform)!;
-            // 多枚炸弹均分角度投掷在玩家附近
             const step = (Math.PI * 2) / atk.count;
             const throwDist = atk.count > 1 ? GameConfig.skills.bomb.throwDistance : 0;
             for (let i = 0; i < atk.count; i++) {
                 const angle = i * step + Math.random() * 0.3;
-                const ox = Math.cos(angle) * throwDist;
-                const oy = Math.sin(angle) * throwDist;
-                createBomb(world, ptf.x + ox, ptf.y + oy,
-                    atk.fuseTime, atk.damage, atk.blastRadius);
+                this.spawnBomb(world,
+                    ptf.x + Math.cos(angle) * throwDist,
+                    ptf.y + Math.sin(angle) * throwDist,
+                    atk.fuseTime, atk.damage, atk.blastRadius, pid);
             }
         }
     }
 
-    /** tick 所有炸弹，引信到 -> 爆炸 */
+    /** 创建炸弹实体 */
+    private spawnBomb(
+        world: ECSWorld, x: number, y: number,
+        fuseTime: number, damage: number, blastRadius: number,
+        ownerEid: number,
+    ): void {
+        const eid = world.createEntity();
+        world.addComponent(eid, new Transform(x, y));
+        world.addComponent(eid, new BombMarker(fuseTime, damage, blastRadius));
+    }
+
+    /** tick 炸弹引信，到时生成爆炸 */
     private tickBombs(dt: number, world: ECSWorld): void {
-        const store = world.getStore(Bomb);
+        const store = world.getStore(BombMarker);
         if (!store) return;
 
         for (const [bid, bomb] of store) {
             bomb.timer += dt;
-
             if (bomb.timer >= bomb.fuseTime) {
                 const tf = world.getComponent(bid, Transform)!;
-                createExplosion(world, tf.x, tf.y, bomb.blastRadius, bomb.damage);
+                this.spawnExplosion(world, tf.x, tf.y, bomb.blastRadius, bomb.damage);
                 world.destroyEntity(bid);
             }
         }
     }
 
-    /** 处理 Explosion：第一帧范围伤害，到期销毁 */
-    private resolveExplosions(dt: number, world: ECSWorld): void {
-        const store = world.getStore(Explosion);
-        if (!store) return;
-
+    /** 创建爆炸实体 */
+    private spawnExplosion(
+        world: ECSWorld, x: number, y: number,
+        radius: number, damage: number,
+    ): void {
+        const lifeTime = GameConfig.skills.bomb.explosion.lifeTime;
         const knockback = GameConfig.skills.bomb.explosion.knockbackSpeed;
-        const enemies = world.query(Transform, EnemyTag, Health);
+
+        const eid = world.createEntity();
+        world.addComponent(eid, new Transform(x, y));
+        world.addComponent(eid, new ExplosionMarker(lifeTime, damage, radius));
+        world.addComponent(eid, new Collider(radius));
+        world.addComponent(eid, new DamageDealer(damage, 'explosion'));
+        world.addComponent(eid, new HitRecord());
+        world.addComponent(eid, new Lifetime(lifeTime));
+    }
+
+    /** 管理爆炸生命周期 */
+    private tickExplosions(dt: number, world: ECSWorld): void {
+        const store = world.getStore(ExplosionMarker);
+        if (!store) return;
 
         for (const [exid, exp] of store) {
             exp.timer += dt;
-            const extf = world.getComponent(exid, Transform);
-            if (!extf) {
-                world.destroyEntity(exid);
-                continue;
-            }
-
-            // 首帧造成伤害
-            if (!exp.dealtDamage) {
-                exp.dealtDamage = true;
-                const rSq = exp.radius * exp.radius;
-
-                for (const eid of enemies) {
-                    const hp = world.getComponent(eid, Health)!;
-                    if (hp.hp <= 0) continue;
-
-                    const etf = world.getComponent(eid, Transform)!;
-                    const dx = etf.x - extf.x;
-                    const dy = etf.y - extf.y;
-                    const distSq = dx * dx + dy * dy;
-                    if (distSq > rSq) continue;
-
-                    hp.hp -= exp.damage;
-
-                    // 向外强力击退
-                    const dist = Math.sqrt(distSq) || 1;
-                    const nx = dx / dist;
-                    const ny = dy / dist;
-                    const kb = world.getComponent(eid, Knockback);
-                    if (kb) {
-                        kb.vx += nx * knockback;
-                        kb.vy += ny * knockback;
-                    } else {
-                        world.addComponent(eid, new Knockback(
-                            nx * knockback,
-                            ny * knockback,
-                            7,
-                        ));
-                    }
-                }
-            }
-
             if (exp.timer >= exp.lifeTime) {
                 world.destroyEntity(exid);
             }
