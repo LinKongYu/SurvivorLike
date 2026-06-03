@@ -7,6 +7,7 @@ export class RenderSystem {
     private _rootNode: Node;
     private _trackedEntities: Map<number, Node> = new Map();
     constructor(rootNode: Node) { this._rootNode = rootNode; }
+
     update(_dt: number, world: any): void {
         for (const eid of query(world, [Render])) {
             const rd = renderStore.get(eid)!;
@@ -17,6 +18,7 @@ export class RenderSystem {
                 rd.node.angle = rd.rotation;
             }
         }
+        // Clean up Nodes for entities that no longer have Render data
         for (const [eid, node] of this._trackedEntities) {
             if (!renderStore.has(eid)) {
                 if (node.isValid) node.destroy();
@@ -24,7 +26,14 @@ export class RenderSystem {
             }
         }
     }
+
     private createNode(eid: number, rd: any): void {
+        // Destroy old Node if this eid was recycled (new entity reused the ID)
+        const oldNode = this._trackedEntities.get(eid);
+        if (oldNode && oldNode.isValid) {
+            oldNode.destroy();
+        }
+
         const node = PrefabPool.instantiate(rd.prefabName);
         if (!node) return;
         node.setParent(this._rootNode);
