@@ -1,8 +1,9 @@
 import { _decorator, Component } from 'cc';
-import { ECSWorld } from './ecs/World';
+import { createGameWorld } from './ecs/World';
 import { PrefabPool } from './ecs/PrefabPool';
 import { GameConfig } from './ecs/GameConfig';
 import { createPlayer, createSpawner, createEnemy } from './ecs/EntityFactory';
+import { positionStore } from './ecs/Components';
 import { InputSystem } from './ecs/systems/InputSystem';
 import { PlayerControlSystem } from './ecs/systems/PlayerControlSystem';
 import { MonsterChaseSystem } from './ecs/systems/MonsterChaseSystem';
@@ -19,76 +20,75 @@ import { SpawnerSystem } from './ecs/systems/SpawnerSystem';
 import { LifetimeSystem } from './ecs/systems/LifetimeSystem';
 import { RenderSystem } from './ecs/systems/RenderSystem';
 import { UISystem } from './ecs/systems/UISystem';
-import { Transform, Camp } from './ecs/Components';
 
 const { ccclass } = _decorator;
 
-/**
- * GameEntry — Cocos Creator 与 ECS 的桥接入口
- */
+type GameSystemRunner = {
+    sys: { update(dt: number, world: any): void; destroy?(): void };
+    priority: number;
+    runWhenPaused?: boolean;
+    runWhenGameOver?: boolean;
+};
+
 @ccclass('GameEntry')
 export class GameEntry extends Component {
-
-    private _world: ECSWorld | null = null;
+    private _world: any = null;
+    private _systems: GameSystemRunner[] = [];
 
     start(): void {
-        Promise.all([
-            PrefabPool.loadAll(),
-            GameConfig.loadAll(),
-        ])
+        Promise.all([PrefabPool.loadAll(), GameConfig.loadAll()])
             .then(() => this.initGame())
-            .catch(err => {
-                console.error('[GameEntry] 启动资源加载失败', err);
-            });
+            .catch(err => console.error('[GameEntry] 启动失败', err));
     }
 
     private initGame(): void {
-        const world = new ECSWorld();
+        const world = createGameWorld();
 
-        // 注册 System（按执行顺序）
-        world.addSystem(new InputSystem(), 0);               // 键盘 → PlayerInput
-        world.addSystem(new PlayerControlSystem(), 2);       // PlayerInput → Velocity
-        world.addSystem(new MonsterChaseSystem(), 3);        // MoveToTarget → Velocity
-        world.addSystem(new MagnetSystem(), 4);              // 经验球吸引 → Velocity
-        world.addSystem(new MovementSystem(), 10);           // Position += Velocity × dt
-        world.addSystem(new DragSystem(), 11);               // 速度阻力衰减
-        world.addSystem(new SeparationSystem(), 15);         // 软分离
-        world.addSystem(new CombatSystem(), 20);             // 碰撞 + 伤害
-        world.addSystem(new BladeSystem(), 22);              // 剑光生成
-        world.addSystem(new OrbitSystem(), 23);              // 飞剑环绕
-        world.addSystem(new BombSystem(), 24);               // 炸弹 + 爆炸
-        world.addSystem(new ExperienceSystem(), 30);         // 经验 + 升级
-        world.addSystem(new SpawnerSystem(), 40);            // 敌人生成
-        world.addSystem(new LifetimeSystem(), 50);           // 生命周期
-        world.addSystem(new RenderSystem(this.node), 90);    // ECS → Node
-        world.addSystem(new UISystem(this.node), 95);        // UI
+        this._systems = [
+            { sys: new InputSystem(), priority: 0 },
+            { sys: new PlayerControlSystem(), priority: 2 },
+            { sys: new MonsterChaseSystem(), priority: 3 },
+            { sys: new MagnetSystem(), priority: 4 },
+            { sys: new MovementSystem(), priority: 10 },
+            { sys: new DragSystem(), priority: 11 },
+            { sys: new SeparationSystem(), priority: 15 },
+            { sys: new CombatSystem(), priority: 20 },
+            { sys: new BladeSystem(), priority: 22 },
+            { sys: new OrbitSystem(), priority: 23 },
+            { sys: new BombSystem(), priority: 24 },
+            { sys: new ExperienceSystem(), priority: 30 },
+            { sys: new SpawnerSystem(), priority: 40 },
+            { sys: new LifetimeSystem(), priority: 50 },
+            { sys: new RenderSystem(this.node), priority: 90, runWhenPaused: true, runWhenGameOver: true },
+            { sys: new UISystem(this.node), priority: 95, runWhenPaused: true, runWhenGameOver: true },
+        ].sort((a, b) => a.priority - b.priority);
 
-        // 创建初始实体
         const playerEid = createPlayer(world, 0, 0);
         createSpawner(world, playerEid);
 
-        // 初始生成若干敌人
-        const ptf = world.getComponent(playerEid, Transform)!;
-        const spawnerCfg = GameConfig.spawner;
-        const initialCount = spawnerCfg.initialSpawnCount;
-        for (let i = 0; i < initialCount; i++) {
+        const ptf = positionStore.get(playerEid)!;
+        const cfg = GameConfig.spawner;
+        for (let i = 0; i < cfg.initialSpawnCount; i++) {
             const angle = Math.random() * Math.PI * 2;
-            const dist = spawnerCfg.minSpawnDistance
-                + Math.random() * (spawnerCfg.spawnRadius - spawnerCfg.minSpawnDistance);
-            createEnemy(
-                world,
-                ptf.x + Math.cos(angle) * dist,
-                ptf.y + Math.sin(angle) * dist,
-                playerEid, 1,
-            );
+            const dist = cfg.minSpawnDistance + Math.random() * (cfg.spawnRadius - cfg.minSpawnDistance);
+            createEnemy(world, ptf.x + Math.cos(angle) * dist, ptf.y + Math.sin(angle) * dist, playerEid, 1);
         }
 
         this._world = world;
     }
 
     update(dt: number): void {
-        if (this._world) {
-            this._world.update(dt);
+        if (!this._world) return;
+        for (const { sys, runWhenPaused, runWhenGameOver } of this._systems) {
+            if (this._world.gameOver && !runWhenGameOver) continue;
+            if (this._world.paused && !runWhenPaused) continue;
+            sys.update(dt, this._world);
+        }
+    }
+
+    onDestroy(): void {
+        for (const { sys } of this._systems) {
+            sys.destroy?.();
         }
     }
 }

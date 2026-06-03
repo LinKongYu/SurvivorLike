@@ -200,8 +200,6 @@ export class GameConfig {
 
     private static _loaded = false;
 
-    static isLoaded(): boolean { return this._loaded; }
-
     /** 获取默认敌人配置的便捷方法 */
     static get enemyDefault(): EnemyConfig {
         const e = this.enemies.get('default');

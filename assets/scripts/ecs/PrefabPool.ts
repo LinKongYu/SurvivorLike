@@ -59,7 +59,4 @@ export class PrefabPool {
         return instantiate(prefab);
     }
 
-    static isLoaded(): boolean {
-        return this._loaded;
-    }
 }

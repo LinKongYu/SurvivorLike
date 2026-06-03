@@ -2,21 +2,18 @@ import {
     Node, Label, UITransform, Color, Size,
     Sprite, SpriteFrame, Texture2D, ImageAsset,
 } from 'cc';
-import { ISystem, ECSWorld } from '../World';
-import { Health, PlayerInput, Level } from '../Components';
-import { LevelUpRequest } from '../SkillComponents';
+import { query, removeComponent } from '../../bitEcs';
+import { Health, PlayerInput, Level, healthStore, playerInputStore, levelStore } from '../Components';
+import { LevelUpRequest, levelUpRequestStore } from '../SkillComponents';
 import { getUpgradeById, pickRandomUpgrades } from '../UpgradePool';
 
 /**
  * UISystem — HUD + 升级面板 + GameOver
  * Priority: 95
- *
- * 通过 PlayerInput 组件定位玩家实体。
  */
-export class UISystem implements ISystem {
-
+export class UISystem {
     private _rootNode: Node;
-    private _initialized: boolean = false;
+    private _initialized = false;
     private _defaultSF: SpriteFrame | null = null;
 
     private _hpBarFill: Node = null!;
@@ -32,54 +29,37 @@ export class UISystem implements ISystem {
     private _gameOverPanel: Node = null!;
     private _gameOverLabel: Label = null!;
 
-    private _cachedHpRatio: number = -1;
-    private _cachedExpRatio: number = -1;
-    private _cachedLevel: number = -1;
+    private _cachedHpRatio = -1;
+    private _cachedExpRatio = -1;
+    private _cachedLevel = -1;
 
-    private _gameTime: number = 0;
-    private _gameOverShown: boolean = false;
+    private _gameTime = 0;
+    private _gameOverShown = false;
 
-    private _currentWorld: ECSWorld | null = null;
-    private _currentPlayerEid: number = -1;
-
-    /** 创建 1×1 白色像素 SpriteFrame（替代 CC 3.0+ 废弃的 builtinResMgr） */
-    private createWhiteSpriteFrame(): SpriteFrame {
-        const canvas = document.createElement('canvas');
-        canvas.width = 1;
-        canvas.height = 1;
-        const ctx = canvas.getContext('2d')!;
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, 1, 1);
-        const imageAsset = new ImageAsset(canvas);
-        const texture = new Texture2D();
-        texture.image = imageAsset;
-        const sf = new SpriteFrame();
-        sf.texture = texture;
-        return sf;
-    }
+    private _currentWorld: any = null;
+    private _currentPlayerEid = -1;
 
     constructor(rootNode: Node) {
         this._rootNode = rootNode;
     }
 
-    update(dt: number, world: ECSWorld): void {
+    update(dt: number, world: any): void {
         if (!this._initialized) {
             this._defaultSF = this.createWhiteSpriteFrame();
             this.createUI();
             this._initialized = true;
         }
 
-        if (!world.isPaused() && !world.isGameOver()) {
+        if (!world.paused && !world.gameOver) {
             this._gameTime += dt;
         }
 
-        // 通过 PlayerInput 定位玩家实体
-        const players = world.query(PlayerInput);
+        const players = query(world, [PlayerInput]);
         if (players.length === 0) return;
         const playerEid = players[0];
 
-        const hp = world.getComponent(playerEid, Health);
-        const level = world.getComponent(playerEid, Level);
+        const hp = healthStore.get(playerEid);
+        const level = levelStore.get(playerEid);
 
         if (hp) {
             const ratio = hp.maxHp > 0 ? hp.hp / hp.maxHp : 0;
@@ -105,7 +85,7 @@ export class UISystem implements ISystem {
         const sec = Math.floor(this._gameTime % 60);
         this._timeLabel.string = `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
 
-        const req = world.getComponent(playerEid, LevelUpRequest);
+        const req = levelUpRequestStore.get(playerEid);
         if (req && req.pendingCount > 0) {
             if (!this._levelUpPanel.active) {
                 this.showLevelUpPanel(world, playerEid, req);
@@ -114,25 +94,36 @@ export class UISystem implements ISystem {
             this._levelUpPanel.active = false;
         }
 
-        if (world.isGameOver() && !this._gameOverShown) {
+        if (world.gameOver && !this._gameOverShown) {
             this._gameOverShown = true;
             this._gameOverPanel.active = true;
             this._gameOverLabel.string = `Survived: ${min}m ${sec}s`;
         }
     }
 
+    private createWhiteSpriteFrame(): SpriteFrame {
+        const canvas = document.createElement('canvas');
+        canvas.width = 1; canvas.height = 1;
+        const ctx = canvas.getContext('2d')!;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, 1, 1);
+        const imageAsset = new ImageAsset(canvas);
+        const texture = new Texture2D();
+        texture.image = imageAsset;
+        const sf = new SpriteFrame();
+        sf.texture = texture;
+        return sf;
+    }
+
     private createColoredRect(
-        parent: Node, name: string,
-        width: number, height: number,
-        color: Color,
-        anchorX: number = 0.5, anchorY: number = 0.5,
+        parent: Node, name: string, w: number, h: number,
+        color: Color, ax = 0.5, ay = 0.5,
     ): Node {
         const node = new Node(name);
         node.setParent(parent);
         const t = node.addComponent(UITransform);
-        t.contentSize = new Size(width, height);
-        t.anchorX = anchorX;
-        t.anchorY = anchorY;
+        t.contentSize = new Size(w, h);
+        t.anchorX = ax; t.anchorY = ay;
         const sprite = node.addComponent(Sprite);
         sprite.spriteFrame = this._defaultSF;
         sprite.color = color;
@@ -149,25 +140,16 @@ export class UISystem implements ISystem {
     }
 
     private createHPBar(): void {
-        const bg = this.createColoredRect(
-            this._rootNode, 'HPBarBg', 200, 16,
-            new Color(80, 0, 0, 255), 0, 0.5,
-        );
+        const bg = this.createColoredRect(this._rootNode, 'HPBarBg', 200, 16, new Color(80, 0, 0, 255), 0, 0.5);
         bg.setPosition(-200, 320, 0);
-        this._hpBarFill = this.createColoredRect(
-            this._rootNode, 'HPBarFill', 200, 16,
-            new Color(0, 200, 0, 255), 0, 0.5,
-        );
+        this._hpBarFill = this.createColoredRect(this._rootNode, 'HPBarFill', 200, 16, new Color(0, 200, 0, 255), 0, 0.5);
         this._hpBarFill.setPosition(-200, 320, 0);
-
         const lbl = new Node('HPLabel');
         lbl.setParent(this._rootNode);
         lbl.setPosition(-100, 338, 0);
         lbl.addComponent(UITransform);
         const l = lbl.addComponent(Label);
-        l.string = 'HP';
-        l.fontSize = 14;
-        l.color = new Color(255, 255, 255, 255);
+        l.string = 'HP'; l.fontSize = 14; l.color = new Color(255, 255, 255, 255);
     }
 
     private updateHPBar(ratio: number): void {
@@ -183,15 +165,9 @@ export class UISystem implements ISystem {
     }
 
     private createExpBar(): void {
-        const bg = this.createColoredRect(
-            this._rootNode, 'ExpBarBg', 200, 10,
-            new Color(0, 0, 80, 255), 0, 0.5,
-        );
+        const bg = this.createColoredRect(this._rootNode, 'ExpBarBg', 200, 10, new Color(0, 0, 80, 255), 0, 0.5);
         bg.setPosition(-200, 298, 0);
-        this._expBarFill = this.createColoredRect(
-            this._rootNode, 'ExpBarFill', 0, 10,
-            new Color(50, 100, 255, 255), 0, 0.5,
-        );
+        this._expBarFill = this.createColoredRect(this._rootNode, 'ExpBarFill', 0, 10, new Color(50, 100, 255, 255), 0, 0.5);
         this._expBarFill.setPosition(-200, 298, 0);
     }
 
@@ -207,8 +183,7 @@ export class UISystem implements ISystem {
         node.setPosition(50, 320, 0);
         node.addComponent(UITransform);
         this._levelLabel = node.addComponent(Label);
-        this._levelLabel.string = 'Lv.1';
-        this._levelLabel.fontSize = 20;
+        this._levelLabel.string = 'Lv.1'; this._levelLabel.fontSize = 20;
         this._levelLabel.color = new Color(255, 255, 0, 255);
     }
 
@@ -218,8 +193,7 @@ export class UISystem implements ISystem {
         node.setPosition(150, 320, 0);
         node.addComponent(UITransform);
         this._timeLabel = node.addComponent(Label);
-        this._timeLabel.string = '00:00';
-        this._timeLabel.fontSize = 18;
+        this._timeLabel.string = '00:00'; this._timeLabel.fontSize = 18;
         this._timeLabel.color = new Color(255, 255, 255, 255);
     }
 
@@ -229,24 +203,15 @@ export class UISystem implements ISystem {
         this._levelUpPanel.setPosition(0, 0, 0);
         this._levelUpPanel.active = false;
 
-        this.createColoredRect(
-            this._levelUpPanel, 'LUBg', 960, 640,
-            new Color(0, 0, 0, 180),
-        ).setPosition(0, 0, 0);
-
+        this.createColoredRect(this._levelUpPanel, 'LUBg', 960, 640, new Color(0, 0, 0, 180)).setPosition(0, 0, 0);
         const title = new Node('LUTitle');
         title.setParent(this._levelUpPanel);
         title.setPosition(0, 180, 0);
         title.addComponent(UITransform);
-        const titleLabel = title.addComponent(Label);
-        titleLabel.string = 'LEVEL UP!';
-        titleLabel.fontSize = 40;
-        titleLabel.color = new Color(255, 220, 0, 255);
+        const tl = title.addComponent(Label);
+        tl.string = 'LEVEL UP!'; tl.fontSize = 40; tl.color = new Color(255, 220, 0, 255);
 
-        const cardW = 200;
-        const cardH = 220;
-        const borderW = 3;
-        const gap = 40;
+        const cardW = 200, cardH = 220, borderW = 3, gap = 40;
         const totalW = cardW * 3 + gap * 2;
         const startX = -totalW / 2 + cardW / 2;
 
@@ -254,51 +219,33 @@ export class UISystem implements ISystem {
             const card = new Node(`Card_${i}`);
             card.setParent(this._levelUpPanel);
             card.setPosition(startX + i * (cardW + gap), 0, 0);
-            const ct = card.addComponent(UITransform);
-            ct.contentSize = new Size(cardW, cardH);
-            ct.anchorX = 0.5;
-            ct.anchorY = 0.5;
+            card.addComponent(UITransform).contentSize = new Size(cardW, cardH);
 
-            this.createColoredRect(
-                card, 'Border', cardW, cardH,
-                new Color(255, 220, 0, 255),
-            );
-            this.createColoredRect(
-                card, 'Bg', cardW - borderW * 2, cardH - borderW * 2,
-                new Color(40, 50, 80, 240),
-            );
+            this.createColoredRect(card, 'Border', cardW, cardH, new Color(255, 220, 0, 255));
+            this.createColoredRect(card, 'Bg', cardW - borderW * 2, cardH - borderW * 2, new Color(40, 50, 80, 240));
 
             const name = new Node('Name');
-            name.setParent(card);
-            name.setPosition(0, 60, 0);
-            name.addComponent(UITransform);
-            const nameLabel = name.addComponent(Label);
-            nameLabel.string = '';
-            nameLabel.fontSize = 22;
-            nameLabel.color = new Color(255, 255, 255, 255);
+            name.setParent(card); name.setPosition(0, 60, 0); name.addComponent(UITransform);
+            const nameLbl = name.addComponent(Label);
+            nameLbl.string = ''; nameLbl.fontSize = 22; nameLbl.color = new Color(255, 255, 255, 255);
 
             const desc = new Node('Desc');
-            desc.setParent(card);
-            desc.setPosition(0, 0, 0);
+            desc.setParent(card); desc.setPosition(0, 0, 0);
             desc.addComponent(UITransform).contentSize = new Size(cardW - 20, 120);
-            const descLabel = desc.addComponent(Label);
-            descLabel.string = '';
-            descLabel.fontSize = 16;
-            descLabel.color = new Color(200, 220, 255, 255);
-            descLabel.enableWrapText = true;
+            const descLbl = desc.addComponent(Label);
+            descLbl.string = ''; descLbl.fontSize = 16; descLbl.color = new Color(200, 220, 255, 255);
+            descLbl.enableWrapText = true;
 
-            const cardIndex = i;
-            card.on(Node.EventType.TOUCH_END, () => {
-                this.onCardSelected(cardIndex);
-            }, this);
+            const idx = i;
+            card.on(Node.EventType.TOUCH_END, () => this.onCardSelected(idx));
 
             this._cardNodes.push(card);
-            this._cardNameLabels.push(nameLabel);
-            this._cardDescLabels.push(descLabel);
+            this._cardNameLabels.push(nameLbl);
+            this._cardDescLabels.push(descLbl);
         }
     }
 
-    private showLevelUpPanel(world: ECSWorld, playerEid: number, req: LevelUpRequest): void {
+    private showLevelUpPanel(world: any, playerEid: number, req: any): void {
         this._levelUpPanel.active = true;
         for (let i = 0; i < 3; i++) {
             if (i < req.currentChoices.length) {
@@ -319,7 +266,7 @@ export class UISystem implements ISystem {
         const playerEid = this._currentPlayerEid;
         if (!world || playerEid < 0) return;
 
-        const req = world.getComponent(playerEid, LevelUpRequest);
+        const req = levelUpRequestStore.get(playerEid);
         if (!req || cardIndex >= req.currentChoices.length) return;
 
         const def = getUpgradeById(req.currentChoices[cardIndex]);
@@ -330,8 +277,9 @@ export class UISystem implements ISystem {
             req.currentChoices = pickRandomUpgrades(world, playerEid, 3).map(u => u.id);
             this.showLevelUpPanel(world, playerEid, req);
         } else {
-            world.removeComponent(playerEid, LevelUpRequest);
-            world.setPaused(false);
+            levelUpRequestStore.delete(playerEid);
+            removeComponent(world, playerEid, LevelUpRequest);
+            world.paused = false;
             this._levelUpPanel.active = false;
         }
     }
@@ -341,25 +289,15 @@ export class UISystem implements ISystem {
         this._gameOverPanel.setParent(this._rootNode);
         this._gameOverPanel.setPosition(0, 0, 0);
         this._gameOverPanel.active = false;
-        this.createColoredRect(
-            this._gameOverPanel, 'GOBg', 960, 640,
-            new Color(0, 0, 0, 150),
-        ).setPosition(0, 0, 0);
+        this.createColoredRect(this._gameOverPanel, 'GOBg', 960, 640, new Color(0, 0, 0, 150)).setPosition(0, 0, 0);
         const title = new Node('GOTitle');
-        title.setParent(this._gameOverPanel);
-        title.setPosition(0, 50, 0);
-        title.addComponent(UITransform);
+        title.setParent(this._gameOverPanel); title.setPosition(0, 50, 0); title.addComponent(UITransform);
         const tl = title.addComponent(Label);
-        tl.string = 'GAME OVER';
-        tl.fontSize = 48;
-        tl.color = new Color(255, 50, 50, 255);
+        tl.string = 'GAME OVER'; tl.fontSize = 48; tl.color = new Color(255, 50, 50, 255);
         const info = new Node('GOInfo');
-        info.setParent(this._gameOverPanel);
-        info.setPosition(0, -20, 0);
-        info.addComponent(UITransform);
+        info.setParent(this._gameOverPanel); info.setPosition(0, -20, 0); info.addComponent(UITransform);
         this._gameOverLabel = info.addComponent(Label);
-        this._gameOverLabel.string = '';
-        this._gameOverLabel.fontSize = 24;
+        this._gameOverLabel.string = ''; this._gameOverLabel.fontSize = 24;
         this._gameOverLabel.color = new Color(255, 255, 255, 255);
     }
 }

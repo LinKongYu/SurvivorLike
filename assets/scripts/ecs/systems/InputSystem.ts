@@ -1,29 +1,26 @@
 import { input, Input, EventKeyboard, KeyCode } from 'cc';
-import { ISystem, ECSWorld } from '../World';
-import { PlayerInput, Camp } from '../Components';
+import { query } from '../../bitEcs';
+import { PlayerInput, playerInputStore } from '../Components';
 
 /**
- * InputSystem - 读取键盘输入，写入 PlayerInput 组件
+ * InputSystem — 键盘 → PlayerInput
  * Priority: 0
  *
- * 由 PlayerControlSystem 消费 PlayerInput 并设置 Velocity。
+ * 每帧读取键盘状态，写入所有玩家实体的 PlayerInput 数据。
  */
-export class InputSystem implements ISystem {
-
+export class InputSystem {
     private _keys: Set<number> = new Set();
-    private _registered: boolean = false;
+    private _registered = false;
 
-    update(_dt: number, world: ECSWorld): void {
+    update(_dt: number, world: any): void {
         if (!this._registered) {
             input.on(Input.EventType.KEY_DOWN, this.onKeyDown, this);
             input.on(Input.EventType.KEY_UP, this.onKeyUp, this);
             this._registered = true;
         }
 
-        const store = world.getStore(PlayerInput);
-        if (!store) return;
-
-        for (const [_eid, inp] of store) {
+        for (const eid of query(world, [PlayerInput])) {
+            const inp = playerInputStore.get(eid)!;
             inp.moveX = 0;
             inp.moveY = 0;
 
