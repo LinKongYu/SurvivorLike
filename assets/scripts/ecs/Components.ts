@@ -161,6 +161,11 @@ export class MoveToTarget {
 
 // ─── 技能 ───
 
+/** 经验奖励值：敌人携带，死亡时生成对应价值的经验球 */
+export class ExpReward {
+    constructor(public value: number = 5) {}
+}
+
 /** 经验球 */
 export class ExpOrb {
     /** 浮动动画相位 */

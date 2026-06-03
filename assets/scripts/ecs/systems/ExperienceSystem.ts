@@ -1,6 +1,6 @@
 import { ISystem, ECSWorld } from '../World';
 import {
-    Transform, Health, PlayerInput, Level, Camp, ExpOrb,
+    Transform, Health, PlayerInput, Level, Camp, ExpOrb, ExpReward,
 } from '../Components';
 import { LevelUpRequest } from '../SkillComponents';
 import { pickRandomUpgrades } from '../UpgradePool';
@@ -43,8 +43,8 @@ export class ExperienceSystem implements ISystem {
             const hp = world.getComponent(eid, Health)!;
             if (hp.hp <= 0) {
                 const tf = world.getComponent(eid, Transform)!;
-                // 默认经验值
-                const expValue = 5;
+                const reward = world.getComponent(eid, ExpReward);
+                const expValue = reward ? reward.value : 5;
                 createExpOrb(world, tf.x, tf.y, expValue);
                 world.destroyEntity(eid);
             }

@@ -30,8 +30,6 @@ export class CombatSystem implements ISystem {
         this.autoAttack(dt, world);
         this.bulletEnemyCollision(world);
         this.enemyPlayerCollision(world);
-        this.processEvents(world);
-        this.processDeaths(world);
     }
 
     // ─── 自动射击 ───
@@ -138,8 +136,9 @@ export class CombatSystem implements ISystem {
                 const dy = ptf.y - etf.y;
                 if (dx * dx + dy * dy >= hitDistSq) continue;
 
-                // 敌人接触伤害使用敌人默认值
-                php.hp -= 10;
+                // 读取敌人的 DamageDealer 作为接触伤害
+                const dealer = world.getComponent(eid, DamageDealer)!;
+                php.hp -= dealer ? dealer.damage : 10;
                 php.invincibleTimer = php.invincibleTime || 0.5;
                 if (php.hp <= 0) {
                     php.hp = 0;
@@ -150,26 +149,4 @@ export class CombatSystem implements ISystem {
         }
     }
 
-    // ─── 事件处理（临时整合，后续拆为独立 System） ───
-
-    private processEvents(world: ECSWorld): void {
-        // 处理 HitEvent → DamageEvent
-        const hits = world.consumeEvents(import('../Events').then(m => m.HitEvent));
-        // 暂不在此系统处理事件（保持向后兼容，直接扣血）
-    }
-
-    private processDeaths(world: ECSWorld): void {
-        const entities = world.query(Health);
-        const toDestroy: number[] = [];
-        for (const eid of entities) {
-            const hp = world.getComponent(eid, Health)!;
-            if (hp.hp <= 0) {
-                toDestroy.push(eid);
-            }
-        }
-        // 死亡处理在 ExperienceSystem
-        for (const eid of toDestroy) {
-            world.destroyEntity(eid);
-        }
-    }
 }

@@ -11,7 +11,7 @@ import { ECSWorld } from './World';
 import {
     Transform, Render, Health, Camp, PlayerInput,
     AutoAttack, Level, MoveToTarget, Velocity, Lifetime,
-    Collider, DamageDealer, Owner, HitRecord, ExpOrb, Spawner,
+    Collider, DamageDealer, Owner, HitRecord, ExpOrb, Spawner, ExpReward,
 } from './Components';
 import { BladeMarker, OrbitingSword, BombMarker, ExplosionMarker } from './SkillComponents';
 import { GameConfig } from './GameConfig';
@@ -57,11 +57,12 @@ export function createEnemy(
         Math.floor(cfg.baseDamage * dmgMul),
         'enemy_contact',
     ));
-    // 敌人经验值暂存在实体上，后续可用 ExpReward 组件
     world.addComponent(eid, new MoveToTarget(playerEid));
     world.addComponent(eid, new Collider(cfg.colliderRadius));
     world.addComponent(eid, new Velocity());
-    world.addComponent(eid, new Level(1, 0, cfg.baseExpReward));
+    world.addComponent(eid, new ExpReward(
+        cfg.baseExpReward + step * cfg.expBonusPerLevel,
+    ));
     return eid;
 }
 

@@ -1,6 +1,6 @@
 import {
     Node, Label, UITransform, Color, Size,
-    Sprite, SpriteFrame, builtinResMgr,
+    Sprite, SpriteFrame, Texture2D, ImageAsset,
 } from 'cc';
 import { ISystem, ECSWorld } from '../World';
 import { Health, PlayerInput, Level } from '../Components';
@@ -42,16 +42,29 @@ export class UISystem implements ISystem {
     private _currentWorld: ECSWorld | null = null;
     private _currentPlayerEid: number = -1;
 
+    /** 创建 1×1 白色像素 SpriteFrame（替代 CC 3.0+ 废弃的 builtinResMgr） */
+    private createWhiteSpriteFrame(): SpriteFrame {
+        const canvas = document.createElement('canvas');
+        canvas.width = 1;
+        canvas.height = 1;
+        const ctx = canvas.getContext('2d')!;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, 1, 1);
+        const imageAsset = new ImageAsset(canvas);
+        const texture = new Texture2D();
+        texture.image = imageAsset;
+        const sf = new SpriteFrame();
+        sf.texture = texture;
+        return sf;
+    }
+
     constructor(rootNode: Node) {
         this._rootNode = rootNode;
     }
 
     update(dt: number, world: ECSWorld): void {
         if (!this._initialized) {
-            this._defaultSF = builtinResMgr.get<SpriteFrame>('default-sprite-splash');
-            if (!this._defaultSF) {
-                console.warn('[UISystem] 未找到内置 default-sprite-splash');
-            }
+            this._defaultSF = this.createWhiteSpriteFrame();
             this.createUI();
             this._initialized = true;
         }

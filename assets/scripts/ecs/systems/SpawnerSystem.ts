@@ -1,5 +1,5 @@
 import { ISystem, ECSWorld } from '../World';
-import { Transform, Spawner } from '../Components';
+import { Transform, Spawner, Camp } from '../Components';
 import { createEnemy } from '../EntityFactory';
 import { GameConfig } from '../GameConfig';
 
