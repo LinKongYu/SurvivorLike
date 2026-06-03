@@ -1,6 +1,6 @@
 import { input, Input, EventKeyboard, KeyCode } from 'cc';
 import { query } from '../../bitEcs';
-import { PlayerInput, playerInputStore } from '../Components';
+import { PlayerInput } from '../Components';
 
 /**
  * InputSystem — 键盘 → PlayerInput
@@ -20,19 +20,18 @@ export class InputSystem {
         }
 
         for (const eid of query(world, [PlayerInput])) {
-            const inp = playerInputStore.get(eid)!;
-            inp.moveX = 0;
-            inp.moveY = 0;
+            PlayerInput.moveX[eid] = 0;
+            PlayerInput.moveY[eid] = 0;
 
-            if (this._keys.has(KeyCode.KEY_W) || this._keys.has(KeyCode.ARROW_UP)) inp.moveY += 1;
-            if (this._keys.has(KeyCode.KEY_S) || this._keys.has(KeyCode.ARROW_DOWN)) inp.moveY -= 1;
-            if (this._keys.has(KeyCode.KEY_A) || this._keys.has(KeyCode.ARROW_LEFT)) inp.moveX -= 1;
-            if (this._keys.has(KeyCode.KEY_D) || this._keys.has(KeyCode.ARROW_RIGHT)) inp.moveX += 1;
+            if (this._keys.has(KeyCode.KEY_W) || this._keys.has(KeyCode.ARROW_UP)) PlayerInput.moveY[eid] += 1;
+            if (this._keys.has(KeyCode.KEY_S) || this._keys.has(KeyCode.ARROW_DOWN)) PlayerInput.moveY[eid] -= 1;
+            if (this._keys.has(KeyCode.KEY_A) || this._keys.has(KeyCode.ARROW_LEFT)) PlayerInput.moveX[eid] -= 1;
+            if (this._keys.has(KeyCode.KEY_D) || this._keys.has(KeyCode.ARROW_RIGHT)) PlayerInput.moveX[eid] += 1;
 
-            if (inp.moveX !== 0 && inp.moveY !== 0) {
-                const len = Math.sqrt(inp.moveX * inp.moveX + inp.moveY * inp.moveY);
-                inp.moveX /= len;
-                inp.moveY /= len;
+            if (PlayerInput.moveX[eid] !== 0 && PlayerInput.moveY[eid] !== 0) {
+                const len = Math.sqrt(PlayerInput.moveX[eid] * PlayerInput.moveX[eid] + PlayerInput.moveY[eid] * PlayerInput.moveY[eid]);
+                PlayerInput.moveX[eid] /= len;
+                PlayerInput.moveY[eid] /= len;
             }
         }
     }

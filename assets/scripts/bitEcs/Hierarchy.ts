@@ -174,7 +174,7 @@ export function calculateEntityDepth(world: World, relation: ComponentRef, entit
 }
 
 /**
- * Internal helper to get entity depth with cycle detection
+ * Internal Helper to get entity depth with cycle detection
  */
 function getEntityDepthWithVisited(world: World, relation: ComponentRef, entity: EntityId, visited: Set<EntityId>): number {
     const ctx = (world as InternalWorld)[$internal]

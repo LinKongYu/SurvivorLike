@@ -7,10 +7,6 @@ import {
     Transform, Velocity, Camp, PlayerInput, AutoAttack, Level,
     Health, DamageDealer, MoveToTarget, Collider, ExpReward, Spawner,
     Render,
-    positionStore, velocityStore, campStore, playerInputStore,
-    autoAttackStore, levelStore, healthStore, damageDealerStore,
-    moveToTargetStore, colliderStore, expRewardStore, spawnerStore,
-    renderStore,
 } from './Components';
 import { GameConfig } from './GameConfig';
 
@@ -18,14 +14,28 @@ export function createPlayer(world: any, x: number, y: number): number {
     const cfg = GameConfig.player;
     const atk = cfg.initialAttack;
     const eid = addEntity(world, Transform, Velocity, Camp, PlayerInput, AutoAttack, Level, Health, Render);
-    positionStore.set(eid, { x, y });
-    velocityStore.set(eid, { x: 0, y: 0 });
-    campStore.set(eid, 'player');
-    playerInputStore.set(eid, { moveX: 0, moveY: 0 });
-    autoAttackStore.set(eid, { timer: 0, cooldown: atk.cooldown, range: atk.range, damage: atk.damage, bulletSpeed: atk.bulletSpeed, count: atk.count, spreadAngle: atk.spreadAngle });
-    levelStore.set(eid, { level: 1, exp: 0, expToNext: cfg.level.initialExpToNext });
-    healthStore.set(eid, { hp: cfg.hp, maxHp: cfg.hp, invincibleTimer: 0, invincibleTime: cfg.invincibleTime });
-    renderStore.set(eid, { prefabName: 'Player', rotation: 0, width: 0, height: 0, node: null, created: false });
+    Transform.x[eid] = x;
+    Transform.y[eid] = y;
+    Velocity.x[eid] = 0;
+    Velocity.y[eid] = 0;
+    Camp.value[eid] = 'player';
+    PlayerInput.moveX[eid] = 0;
+    PlayerInput.moveY[eid] = 0;
+    AutoAttack.timer[eid] = 0;
+    AutoAttack.cooldown[eid] = atk.cooldown;
+    AutoAttack.range[eid] = atk.range;
+    AutoAttack.damage[eid] = atk.damage;
+    AutoAttack.bulletSpeed[eid] = atk.bulletSpeed;
+    AutoAttack.count[eid] = atk.count;
+    AutoAttack.spreadAngle[eid] = atk.spreadAngle;
+    Level.level[eid] = 1;
+    Level.exp[eid] = 0;
+    Level.expToNext[eid] = cfg.level.initialExpToNext;
+    Health.hp[eid] = cfg.hp;
+    Health.maxHp[eid] = cfg.hp;
+    Health.invincibleTimer[eid] = 0;
+    Health.invincibleTime[eid] = cfg.invincibleTime;
+    Render[eid] = { prefabName: 'Player', rotation: 0, width: 0, height: 0, node: null, created: false };
     return eid;
 }
 
@@ -38,21 +48,35 @@ export function createEnemy(world: any, x: number, y: number, playerEid: number,
     const hp = Math.floor(cfg.baseHp * hpMul);
 
     const eid = addEntity(world, Transform, Velocity, Camp, Health, DamageDealer, MoveToTarget, Collider, ExpReward, Render);
-    positionStore.set(eid, { x, y });
-    velocityStore.set(eid, { x: 0, y: 0 });
-    campStore.set(eid, 'enemy');
-    healthStore.set(eid, { hp, maxHp: hp, invincibleTimer: 0, invincibleTime: 0 });
-    damageDealerStore.set(eid, { damage: Math.floor(cfg.baseDamage * dmgMul), skillId: 'enemy_contact' });
-    moveToTargetStore.set(eid, { targetEntityId: playerEid, moveSpeed: cfg.baseMoveSpeed * speedMul });
-    colliderStore.set(eid, { radius: cfg.colliderRadius });
-    expRewardStore.set(eid, cfg.baseExpReward + step * cfg.expBonusPerLevel);
-    renderStore.set(eid, { prefabName: 'Enemy', rotation: 0, width: 0, height: 0, node: null, created: false });
+    Transform.x[eid] = x;
+    Transform.y[eid] = y;
+    Velocity.x[eid] = 0;
+    Velocity.y[eid] = 0;
+    Camp.value[eid] = 'enemy';
+    Health.hp[eid] = hp;
+    Health.maxHp[eid] = hp;
+    Health.invincibleTimer[eid] = 0;
+    Health.invincibleTime[eid] = 0;
+    DamageDealer.damage[eid] = Math.floor(cfg.baseDamage * dmgMul);
+    DamageDealer.skillId[eid] = 'enemy_contact';
+    MoveToTarget.targetEntityId[eid] = playerEid;
+    MoveToTarget.moveSpeed[eid] = cfg.baseMoveSpeed * speedMul;
+    Collider.radius[eid] = cfg.colliderRadius;
+    ExpReward.value[eid] = cfg.baseExpReward + step * cfg.expBonusPerLevel;
+    Render[eid] = { prefabName: 'Enemy', rotation: 0, width: 0, height: 0, node: null, created: false };
     return eid;
 }
 
 export function createSpawner(world: any, playerEid: number): number {
     const cfg = GameConfig.spawner;
     const eid = addEntity(world, Spawner);
-    spawnerStore.set(eid, { timer: 0, difficultyTimer: 0, interval: cfg.initialInterval, maxCount: cfg.initialMaxCount, difficulty: 1, spawnRadius: cfg.spawnRadius, minSpawnDistance: cfg.minSpawnDistance, playerEntityId: playerEid });
+    Spawner.timer[eid] = 0;
+    Spawner.difficultyTimer[eid] = 0;
+    Spawner.interval[eid] = cfg.initialInterval;
+    Spawner.maxCount[eid] = cfg.initialMaxCount;
+    Spawner.difficulty[eid] = 1;
+    Spawner.spawnRadius[eid] = cfg.spawnRadius;
+    Spawner.minSpawnDistance[eid] = cfg.minSpawnDistance;
+    Spawner.playerEntityId[eid] = playerEid;
     return eid;
 }

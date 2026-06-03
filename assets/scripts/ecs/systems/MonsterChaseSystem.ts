@@ -1,23 +1,23 @@
 import { query } from '../../bitEcs';
-import { Transform, Velocity, Camp, MoveToTarget, positionStore, velocityStore, campStore, moveToTargetStore } from '../Components';
+import { Transform, Velocity, Camp, MoveToTarget } from '../Components';
 import { GameConfig } from '../GameConfig';
 
 export class MonsterChaseSystem {
     update(_dt: number, world: any): void {
         for (const eid of query(world, [Transform, Velocity, Camp, MoveToTarget])) {
-            if (campStore.get(eid) !== 'enemy') continue;
-            const tf = positionStore.get(eid);
-            const chase = moveToTargetStore.get(eid);
-            if (!tf || !chase) continue;
-            const targetTf = positionStore.get(chase.targetEntityId);
-            if (!targetTf) continue;
-            const dx = targetTf.x - tf.x;
-            const dy = targetTf.y - tf.y;
+            if (Camp.value[eid] !== 'enemy') continue;
+            const targetEid = MoveToTarget.targetEntityId[eid];
+            const dx = Transform.x[targetEid] - Transform.x[eid];
+            const dy = Transform.y[targetEid] - Transform.y[eid];
             const dist = Math.sqrt(dx * dx + dy * dy);
-            const vel = velocityStore.get(eid)!;
-            const speed = chase.moveSpeed || GameConfig.enemyDefault.baseMoveSpeed;
-            if (dist > 1) { vel.x = (dx / dist) * speed; vel.y = (dy / dist) * speed; }
-            else { vel.x = 0; vel.y = 0; }
+            const speed = MoveToTarget.moveSpeed[eid] || GameConfig.enemyDefault.baseMoveSpeed;
+            if (dist > 1) {
+                Velocity.x[eid] = (dx / dist) * speed;
+                Velocity.y[eid] = (dy / dist) * speed;
+            } else {
+                Velocity.x[eid] = 0;
+                Velocity.y[eid] = 0;
+            }
         }
     }
 }

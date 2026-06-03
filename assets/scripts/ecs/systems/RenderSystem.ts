@@ -1,6 +1,6 @@
 import { Node, UITransform, Size } from 'cc';
 import { query } from '../../bitEcs';
-import { Render, renderStore, positionStore } from '../Components';
+import { Render, Transform } from '../Components';
 import { PrefabPool } from '../PrefabPool';
 
 export class RenderSystem {
@@ -10,17 +10,16 @@ export class RenderSystem {
 
     update(_dt: number, world: any): void {
         for (const eid of query(world, [Render])) {
-            const rd = renderStore.get(eid)!;
+            const rd = Render[eid];
             if (!rd.created) this.createNode(eid, rd);
             if (rd.node) {
-                const tf = positionStore.get(eid);
-                if (tf) rd.node.setPosition(tf.x, tf.y, 0);
+                rd.node.setPosition(Transform.x[eid], Transform.y[eid], 0);
                 rd.node.angle = rd.rotation;
             }
         }
         // Clean up Nodes for entities that no longer have Render data
         for (const [eid, node] of this._trackedEntities) {
-            if (!renderStore.has(eid)) {
+            if (!Render[eid]) {
                 if (node.isValid) node.destroy();
                 this._trackedEntities.delete(eid);
             }
@@ -45,8 +44,7 @@ export class RenderSystem {
                 t.contentSize = new Size(w, h);
             }
         }
-        const tf = positionStore.get(eid);
-        if (tf) node.setPosition(tf.x, tf.y, 0);
+        node.setPosition(Transform.x[eid], Transform.y[eid], 0);
         node.angle = rd.rotation;
         rd.node = node;
         rd.created = true;

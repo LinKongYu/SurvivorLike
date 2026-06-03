@@ -3,7 +3,7 @@ import { createGameWorld } from './ecs/World';
 import { PrefabPool } from './ecs/PrefabPool';
 import { GameConfig } from './ecs/GameConfig';
 import { createPlayer, createSpawner, createEnemy } from './ecs/EntityFactory';
-import { positionStore } from './ecs/Components';
+import { Transform } from './ecs/Components';
 import { InputSystem } from './ecs/systems/InputSystem';
 import { PlayerControlSystem } from './ecs/systems/PlayerControlSystem';
 import { MonsterChaseSystem } from './ecs/systems/MonsterChaseSystem';
@@ -66,12 +66,11 @@ export class GameEntry extends Component {
         const playerEid = createPlayer(world, 0, 0);
         createSpawner(world, playerEid);
 
-        const ptf = positionStore.get(playerEid)!;
         const cfg = GameConfig.spawner;
         for (let i = 0; i < cfg.initialSpawnCount; i++) {
             const angle = Math.random() * Math.PI * 2;
             const dist = cfg.minSpawnDistance + Math.random() * (cfg.spawnRadius - cfg.minSpawnDistance);
-            createEnemy(world, ptf.x + Math.cos(angle) * dist, ptf.y + Math.sin(angle) * dist, playerEid, 1);
+            createEnemy(world, Transform.x[playerEid] + Math.cos(angle) * dist, Transform.y[playerEid] + Math.sin(angle) * dist, playerEid, 1);
         }
 
         this._world = world;

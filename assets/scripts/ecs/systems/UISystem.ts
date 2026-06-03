@@ -3,8 +3,8 @@ import {
     Sprite, SpriteFrame, Texture2D, ImageAsset,
 } from 'cc';
 import { query, removeComponent } from '../../bitEcs';
-import { Health, PlayerInput, Level, healthStore, playerInputStore, levelStore } from '../Components';
-import { LevelUpRequest, levelUpRequestStore } from '../SkillComponents';
+import { Health, PlayerInput, Level } from '../Components';
+import { LevelUpRequest } from '../SkillComponents';
 import { getUpgradeById, pickRandomUpgrades } from '../UpgradePool';
 
 /**
@@ -58,34 +58,27 @@ export class UISystem {
         if (players.length === 0) return;
         const playerEid = players[0];
 
-        const hp = healthStore.get(playerEid);
-        const level = levelStore.get(playerEid);
-
-        if (hp) {
-            const ratio = hp.maxHp > 0 ? hp.hp / hp.maxHp : 0;
-            if (Math.abs(ratio - this._cachedHpRatio) > 0.001) {
-                this._cachedHpRatio = ratio;
-                this.updateHPBar(ratio);
-            }
+        const hpRatio = Health.maxHp[playerEid] > 0 ? Health.hp[playerEid] / Health.maxHp[playerEid] : 0;
+        if (Math.abs(hpRatio - this._cachedHpRatio) > 0.001) {
+            this._cachedHpRatio = hpRatio;
+            this.updateHPBar(hpRatio);
         }
 
-        if (level) {
-            const ratio = level.expToNext > 0 ? level.exp / level.expToNext : 0;
-            if (Math.abs(ratio - this._cachedExpRatio) > 0.01) {
-                this._cachedExpRatio = ratio;
-                this.updateExpBar(ratio);
-            }
-            if (level.level !== this._cachedLevel) {
-                this._cachedLevel = level.level;
-                this._levelLabel.string = `Lv.${level.level}`;
-            }
+        const expRatio = Level.expToNext[playerEid] > 0 ? Level.exp[playerEid] / Level.expToNext[playerEid] : 0;
+        if (Math.abs(expRatio - this._cachedExpRatio) > 0.01) {
+            this._cachedExpRatio = expRatio;
+            this.updateExpBar(expRatio);
+        }
+        if (Level.level[playerEid] !== this._cachedLevel) {
+            this._cachedLevel = Level.level[playerEid];
+            this._levelLabel.string = `Lv.${Level.level[playerEid]}`;
         }
 
         const min = Math.floor(this._gameTime / 60);
         const sec = Math.floor(this._gameTime % 60);
         this._timeLabel.string = `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
 
-        const req = levelUpRequestStore.get(playerEid);
+        const req = LevelUpRequest[playerEid];
         if (req && req.pendingCount > 0) {
             if (!this._levelUpPanel.active) {
                 this.showLevelUpPanel(world, playerEid, req);
@@ -266,7 +259,7 @@ export class UISystem {
         const playerEid = this._currentPlayerEid;
         if (!world || playerEid < 0) return;
 
-        const req = levelUpRequestStore.get(playerEid);
+        const req = LevelUpRequest[playerEid];
         if (!req || cardIndex >= req.currentChoices.length) return;
 
         const def = getUpgradeById(req.currentChoices[cardIndex]);
@@ -277,7 +270,7 @@ export class UISystem {
             req.currentChoices = pickRandomUpgrades(world, playerEid, 3).map(u => u.id);
             this.showLevelUpPanel(world, playerEid, req);
         } else {
-            levelUpRequestStore.delete(playerEid);
+            delete LevelUpRequest[playerEid];
             removeComponent(world, playerEid, LevelUpRequest);
             world.paused = false;
             this._levelUpPanel.active = false;

@@ -1,21 +1,15 @@
-import { query, addEntity, removeEntity, entityExists } from '../../bitEcs';
+import { query, addEntity, addComponent, removeEntity, entityExists, isNested } from '../../bitEcs';
 import {
     Transform, Velocity, PlayerInput, AutoAttack, Camp, Collider,
     DamageDealer, Owner, HitRecord, Drag, Health, Lifetime,
-    positionStore, velocityStore, autoAttackStore, campStore,
-    colliderStore, damageDealerStore, ownerStore, hitRecordStore,
-    dragStore, healthStore, lifetimeStore, clearEntityData,
+    Render, clearEntityData,
 } from '../Components';
-import { Render, renderStore } from '../Components';
-import { bladeMarkerStore } from '../SkillComponents';
+import { BladeMarker } from '../SkillComponents';
 import { GameConfig } from '../GameConfig';
-import { findNearestEnemy } from '../helpers';
+import { findNearestEnemy } from '../Helpers';
 
 /**
- * CombatSystem — 自动射击 + 碰撞检测 + 伤害处理
- * Priority: 20
- *
- * TODO: 拆分为 Collision / Damage / Health / Death 独立 System
+ * CombatSystem - auto attack, damage collision, health and contact damage.
  */
 export class CombatSystem {
     update(dt: number, world: any): void {
@@ -27,42 +21,45 @@ export class CombatSystem {
 
     private autoAttack(dt: number, world: any): void {
         for (const pid of query(world, [Transform, PlayerInput, AutoAttack])) {
-            const atk = autoAttackStore.get(pid)!;
-            atk.timer += dt;
-            if (atk.timer < atk.cooldown) continue;
+            AutoAttack.timer[pid] += dt;
+            if (AutoAttack.timer[pid] < AutoAttack.cooldown[pid]) continue;
 
-            const ptf = positionStore.get(pid)!;
-            const nearest = findNearestEnemy(world, ptf.x, ptf.y, atk.range);
+            const nearest = findNearestEnemy(world, Transform.x[pid], Transform.y[pid], AutoAttack.range[pid]);
             if (!nearest) continue;
 
-            atk.timer = 0;
-            const etf = positionStore.get(nearest.eid)!;
-            const baseAngle = Math.atan2(etf.y - ptf.y, etf.x - ptf.x);
-            const n = Math.max(1, atk.count);
+            AutoAttack.timer[pid] = 0;
+            const baseAngle = Math.atan2(
+                Transform.y[nearest.eid] - Transform.y[pid],
+                Transform.x[nearest.eid] - Transform.x[pid],
+            );
+            const count = Math.max(1, AutoAttack.count[pid]);
             const bulletCfg = GameConfig.skills.bullet;
 
-            for (let i = 0; i < n; i++) {
-                const offset = n === 1 ? 0 : ((i / (n - 1)) - 0.5) * atk.spreadAngle;
+            for (let i = 0; i < count; i++) {
+                const offset = count === 1 ? 0 : ((i / (count - 1)) - 0.5) * AutoAttack.spreadAngle[pid];
                 const angle = baseAngle + offset;
                 const dirX = Math.cos(angle);
                 const dirY = Math.sin(angle);
 
                 const eid = addEntity(world, Transform, Velocity, DamageDealer, Owner, Collider, HitRecord, Lifetime, Render);
-                positionStore.set(eid, { x: ptf.x, y: ptf.y });
-                velocityStore.set(eid, { x: dirX * atk.bulletSpeed, y: dirY * atk.bulletSpeed });
-                damageDealerStore.set(eid, { damage: atk.damage, skillId: 'bullet' });
-                ownerStore.set(eid, pid);
-                colliderStore.set(eid, { radius: bulletCfg.hitRadius });
-                hitRecordStore.set(eid, new Map());
-                lifetimeStore.set(eid, { remaining: bulletCfg.lifeTime });
-                renderStore.set(eid, { prefabName: 'Bullet', rotation: 0, width: 0, height: 0, node: null, created: false });
+                Transform.x[eid] = Transform.x[pid];
+                Transform.y[eid] = Transform.y[pid];
+                Velocity.x[eid] = dirX * AutoAttack.bulletSpeed[pid];
+                Velocity.y[eid] = dirY * AutoAttack.bulletSpeed[pid];
+                DamageDealer.damage[eid] = AutoAttack.damage[pid];
+                DamageDealer.skillId[eid] = 'bullet';
+                Owner.eid[eid] = pid;
+                Collider.radius[eid] = bulletCfg.hitRadius;
+                HitRecord[eid] = new Map();
+                Lifetime.remaining[eid] = bulletCfg.lifeTime;
+                Render[eid] = { prefabName: 'Bullet', rotation: 0, width: 0, height: 0, node: null, created: false };
             }
         }
     }
 
     private tickHitRecords(dt: number, world: any): void {
         for (const eid of query(world, [HitRecord])) {
-            const records = hitRecordStore.get(eid);
+            const records = HitRecord[eid];
             if (!records) continue;
             for (const [targetEid, remaining] of records) {
                 if (remaining === Infinity) continue;
@@ -74,31 +71,30 @@ export class CombatSystem {
     }
 
     private damageEnemyCollision(world: any): void {
-        for (const bid of query(world, [Transform, DamageDealer, Owner, Collider])) {
-            const btf = positionStore.get(bid)!;
-            const dealer = damageDealerStore.get(bid)!;
-            const bc = colliderStore.get(bid)!;
-            const records = hitRecordStore.get(bid);
+        for (const damageEid of query(world, [Transform, DamageDealer, Owner, Collider])) {
+            const records = HitRecord[damageEid];
+            const skillId = DamageDealer.skillId[damageEid];
 
-            for (const eid of query(world, [Transform, Health, Camp, Collider])) {
-                if (campStore.get(eid) !== 'enemy') continue;
-                const hp = healthStore.get(eid)!;
-                if (hp.hp <= 0) continue;
-                if (records?.has(eid)) continue;
+            for (const enemyEid of query(world, [Transform, Health, Camp, Collider], isNested)) {
+                if (Camp.value[enemyEid] !== 'enemy') continue;
+                if (Health.hp[enemyEid] <= 0) continue;
+                if (records?.has(enemyEid)) continue;
 
-                const etf = positionStore.get(eid)!;
-                const ec = colliderStore.get(eid)!;
-                const dx = etf.x - btf.x;
-                const dy = etf.y - btf.y;
+                const dx = Transform.x[enemyEid] - Transform.x[damageEid];
+                const dy = Transform.y[enemyEid] - Transform.y[damageEid];
                 const distSq = dx * dx + dy * dy;
-                if (!this.isDamageInRange(bid, dealer.skillId, distSq, bc.radius + ec.radius, dx, dy)) continue;
+                const radius = Collider.radius[damageEid] + Collider.radius[enemyEid];
+                if (!this.isDamageInRange(damageEid, skillId, distSq, radius, dx, dy)) continue;
 
-                hp.hp -= dealer.damage;
-                this.applyKnockback(eid, dx, dy, this.getKnockbackSpeed(dealer.skillId));
+                Health.hp[enemyEid] -= DamageDealer.damage[damageEid];
+                this.applyKnockback(world, enemyEid, dx, dy, this.getKnockbackSpeed(skillId));
 
-                if (records) records.set(eid, this.getHitCooldown(dealer.skillId));
-                if (dealer.skillId === 'bullet') {
-                    if (entityExists(world, bid)) { clearEntityData(bid); removeEntity(world, bid); }
+                if (records) records.set(enemyEid, this.getHitCooldown(skillId));
+                if (skillId === 'bullet') {
+                    if (entityExists(world, damageEid)) {
+                        clearEntityData(damageEid);
+                        removeEntity(world, damageEid);
+                    }
                     break;
                 }
             }
@@ -109,29 +105,23 @@ export class CombatSystem {
         damageEid: number, skillId: string, distSq: number, radius: number, dx: number, dy: number,
     ): boolean {
         if (skillId === 'blade') {
-            const blade = bladeMarkerStore.get(damageEid);
-            if (!blade) return false;
             if (distSq > radius * radius) return false;
             const angle = Math.atan2(dy, dx);
-            return Math.abs(this.angleDelta(angle, blade.facingAngle)) <= blade.arc * 0.5;
+            return Math.abs(this.angleDelta(angle, BladeMarker.facingAngle[damageEid])) <= BladeMarker.arc[damageEid] * 0.5;
         }
 
         return distSq < radius * radius;
     }
 
-    private applyKnockback(eid: number, dx: number, dy: number, speed: number): void {
+    private applyKnockback(world: any, eid: number, dx: number, dy: number, speed: number): void {
         if (speed <= 0) return;
-        let vel = velocityStore.get(eid);
-        if (!vel) {
-            vel = { x: 0, y: 0 };
-            velocityStore.set(eid, vel);
-        }
         const dist = Math.sqrt(dx * dx + dy * dy);
         const nx = dist > 0.001 ? dx / dist : 1;
         const ny = dist > 0.001 ? dy / dist : 0;
-        vel.x += nx * speed;
-        vel.y += ny * speed;
-        if (!dragStore.has(eid)) dragStore.set(eid, { coefficient: 8 });
+        Velocity.x[eid] += nx * speed;
+        Velocity.y[eid] += ny * speed;
+        addComponent(world, eid, Drag);
+        Drag.coefficient[eid] = 8;
     }
 
     private getKnockbackSpeed(skillId: string): number {
@@ -158,27 +148,22 @@ export class CombatSystem {
         const hitRadius = GameConfig.skills.contact.enemyPlayerHitRadius;
         const hitDistSq = hitRadius * hitRadius;
 
-        for (const pid of query(world, [Transform, Health, PlayerInput])) {
-            const php = healthStore.get(pid)!;
-            if (php.hp <= 0 || php.invincibleTimer > 0) continue;
-            const ptf = positionStore.get(pid)!;
+        for (const playerEid of query(world, [Transform, Health, PlayerInput])) {
+            if (Health.hp[playerEid] <= 0 || Health.invincibleTimer[playerEid] > 0) continue;
 
-            for (const eid of query(world, [Transform, Camp])) {
-                if (campStore.get(eid) !== 'enemy') continue;
-                const ehp = healthStore.get(eid);
-                if (!ehp || ehp.hp <= 0) continue;
+            for (const enemyEid of query(world, [Transform, Camp], isNested)) {
+                if (Camp.value[enemyEid] !== 'enemy') continue;
+                if (Health.hp[enemyEid] <= 0) continue;
 
-                const etf = positionStore.get(eid)!;
-                const dx = ptf.x - etf.x;
-                const dy = ptf.y - etf.y;
+                const dx = Transform.x[playerEid] - Transform.x[enemyEid];
+                const dy = Transform.y[playerEid] - Transform.y[enemyEid];
                 if (dx * dx + dy * dy >= hitDistSq) continue;
 
-                const dealer = damageDealerStore.get(eid);
-                php.hp -= dealer ? dealer.damage : 10;
-                php.invincibleTimer = php.invincibleTime || 0.5;
-                if (php.hp <= 0) {
-                    php.hp = 0;
-                    (world as any).gameOver = true;
+                Health.hp[playerEid] -= DamageDealer.damage[enemyEid] || 10;
+                Health.invincibleTimer[playerEid] = Health.invincibleTime[playerEid] || 0.5;
+                if (Health.hp[playerEid] <= 0) {
+                    Health.hp[playerEid] = 0;
+                    world.gameOver = true;
                 }
                 break;
             }

@@ -1,5 +1,5 @@
-import { query } from '../../bitEcs';
-import { Camp, Spawner, positionStore, campStore, spawnerStore } from '../Components';
+import { query, isNested } from '../../bitEcs';
+import { Camp, Spawner, Transform } from '../Components';
 import { GameConfig } from '../GameConfig';
 import { createEnemy } from '../EntityFactory';
 
@@ -11,31 +11,30 @@ export class SpawnerSystem {
     update(dt: number, world: any): void {
         const cfg = GameConfig.spawner;
         for (const eid of query(world, [Spawner])) {
-            const sp = spawnerStore.get(eid)!;
-            sp.difficultyTimer += dt;
-            if (sp.difficultyTimer >= cfg.difficultyIntervalSeconds) {
-                sp.difficultyTimer -= cfg.difficultyIntervalSeconds;
-                sp.difficulty++;
-                sp.interval = Math.max(cfg.minInterval, sp.interval * cfg.spawnIntervalDecay);
-                sp.maxCount = Math.min(cfg.maxCountCap, sp.maxCount + cfg.maxCountIncrement);
+            Spawner.difficultyTimer[eid] += dt;
+            if (Spawner.difficultyTimer[eid] >= cfg.difficultyIntervalSeconds) {
+                Spawner.difficultyTimer[eid] -= cfg.difficultyIntervalSeconds;
+                Spawner.difficulty[eid]++;
+                Spawner.interval[eid] = Math.max(cfg.minInterval, Spawner.interval[eid] * cfg.spawnIntervalDecay);
+                Spawner.maxCount[eid] = Math.min(cfg.maxCountCap, Spawner.maxCount[eid] + cfg.maxCountIncrement);
             }
 
-            sp.timer += dt;
-            if (sp.timer < sp.interval) continue;
-            sp.timer = 0;
+            Spawner.timer[eid] += dt;
+            if (Spawner.timer[eid] < Spawner.interval[eid]) continue;
+            Spawner.timer[eid] = 0;
 
-            const enemyCount = query(world, [Camp]).filter(id => campStore.get(id) === 'enemy').length;
-            if (enemyCount >= sp.maxCount) continue;
+            const enemyCount = query(world, [Camp], isNested).filter(id => Camp.value[id] === 'enemy').length;
+            if (enemyCount >= Spawner.maxCount[eid]) continue;
 
-            const ptf = positionStore.get(sp.playerEntityId);
-            const px = ptf ? ptf.x : 0;
-            const py = ptf ? ptf.y : 0;
+            const playerEid = Spawner.playerEntityId[eid];
+            const px = Transform.x[playerEid] ?? 0;
+            const py = Transform.y[playerEid] ?? 0;
             const angle = Math.random() * Math.PI * 2;
-            const dist = sp.minSpawnDistance + Math.random() * (sp.spawnRadius - sp.minSpawnDistance);
+            const dist = Spawner.minSpawnDistance[eid] + Math.random() * (Spawner.spawnRadius[eid] - Spawner.minSpawnDistance[eid]);
 
             const x = px + Math.cos(angle) * dist;
             const y = py + Math.sin(angle) * dist;
-            createEnemy(world, x, y, sp.playerEntityId, sp.difficulty);
+            createEnemy(world, x, y, playerEid, Spawner.difficulty[eid]);
         }
     }
 }

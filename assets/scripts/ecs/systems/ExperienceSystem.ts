@@ -1,10 +1,10 @@
 import { query, addEntity, addComponent, removeEntity, entityExists } from '../../bitEcs';
 import {
     Transform, Velocity, Health, PlayerInput, Camp, Level, ExpOrb, ExpReward,
-    positionStore, healthStore, campStore, levelStore, expOrbStore, expRewardStore, clearEntityData,
+    clearEntityData,
 } from '../Components';
-import { LevelUpRequest, levelUpRequestStore } from '../SkillComponents';
-import { Render, renderStore, velocityStore } from '../Components';
+import { LevelUpRequest } from '../SkillComponents';
+import { Render } from '../Components';
 import { pickRandomUpgrades } from '../UpgradePool';
 import { GameConfig } from '../GameConfig';
 
@@ -21,31 +21,31 @@ export class ExperienceSystem {
 
     private handleEnemyDeath(world: any): void {
         for (const eid of query(world, [Transform, Health, Camp])) {
-            if (campStore.get(eid) !== 'enemy') continue;
-            const hp = healthStore.get(eid)!;
-            if (hp.hp <= 0) {
-                const tf = positionStore.get(eid)!;
-                const reward = expRewardStore.get(eid);
-                const value = reward ?? 5;
+            if (Camp.value[eid] !== 'enemy') continue;
+            if (Health.hp[eid] <= 0) {
+                const value = ExpReward.value[eid] ?? 5;
 
                 const orb = addEntity(world, Transform, Velocity, ExpOrb, Render);
-                positionStore.set(orb, { x: tf.x, y: tf.y });
-                velocityStore.set(orb, { x: 0, y: 0 });
+                Transform.x[orb] = Transform.x[eid];
+                Transform.y[orb] = Transform.y[eid];
+                Velocity.x[orb] = 0;
+                Velocity.y[orb] = 0;
                 const cfg = GameConfig.skills.expOrb;
-                expOrbStore.set(orb, {
-                    value, magnetRadius: cfg.attractRange, magnetSpeed: cfg.attractSpeed,
-                    floatTimer: Math.random() * Math.PI * 2, baseY: tf.y,
-                });
-                renderStore.set(orb, { prefabName: 'ExpOrb', rotation: 0, width: 0, height: 0, node: null, created: false });
+                ExpOrb.value[orb] = value;
+                ExpOrb.magnetRadius[orb] = cfg.attractRange;
+                ExpOrb.magnetSpeed[orb] = cfg.attractSpeed;
+                ExpOrb.floatTimer[orb] = Math.random() * Math.PI * 2;
+                ExpOrb.baseY[orb] = Transform.y[eid];
+                Render[orb] = { prefabName: 'ExpOrb', rotation: 0, width: 0, height: 0, node: null, created: false };
 
                 if (entityExists(world, eid)) { clearEntityData(eid); removeEntity(world, eid); }
             }
         }
     }
 
-    private updateInvincibility(dt: number, _world: any): void {
-        for (const [eid, hp] of healthStore) {
-            if (hp.invincibleTimer > 0) hp.invincibleTimer -= dt;
+    private updateInvincibility(dt: number, world: any): void {
+        for (const eid of query(world, [Health])) {
+            if (Health.invincibleTimer[eid] > 0) Health.invincibleTimer[eid] -= dt;
         }
     }
 
@@ -53,22 +53,18 @@ export class ExperienceSystem {
         const players = query(world, [Transform, PlayerInput, Level]);
         if (players.length === 0) return;
         const playerEid = players[0];
-        const ptf = positionStore.get(playerEid)!;
-        const level = levelStore.get(playerEid)!;
         const collectDist = GameConfig.skills.expOrb.collectDistance;
         const growth = GameConfig.player.level.expGrowthFactor;
 
         for (const eid of query(world, [Transform, ExpOrb])) {
-            const orb = expOrbStore.get(eid)!;
-            const otf = positionStore.get(eid)!;
-            const dx = ptf.x - otf.x;
-            const dy = ptf.y - otf.y;
+            const dx = Transform.x[playerEid] - Transform.x[eid];
+            const dy = Transform.y[playerEid] - Transform.y[eid];
             if (dx * dx + dy * dy < collectDist * collectDist) {
-                level.exp += orb.value;
-                while (level.exp >= level.expToNext) {
-                    level.level++;
-                    level.exp -= level.expToNext;
-                    level.expToNext = Math.floor(growth * level.level);
+                Level.exp[playerEid] += ExpOrb.value[eid];
+                while (Level.exp[playerEid] >= Level.expToNext[playerEid]) {
+                    Level.level[playerEid]++;
+                    Level.exp[playerEid] -= Level.expToNext[playerEid];
+                    Level.expToNext[playerEid] = Math.floor(growth * Level.level[playerEid]);
                     this.triggerLevelUp(world, playerEid);
                 }
                 if (entityExists(world, eid)) { clearEntityData(eid); removeEntity(world, eid); }
@@ -77,10 +73,9 @@ export class ExperienceSystem {
     }
 
     private triggerLevelUp(world: any, playerEid: number): void {
-        const hp = healthStore.get(playerEid);
-        if (hp) hp.hp = hp.maxHp;
+        Health.hp[playerEid] = Health.maxHp[playerEid];
 
-        const existing = levelUpRequestStore.get(playerEid);
+        const existing = LevelUpRequest[playerEid];
         if (existing) {
             existing.pendingCount += 1;
             return;
@@ -89,7 +84,7 @@ export class ExperienceSystem {
         const req = { currentChoices: pickRandomUpgrades(world, playerEid, 3).map(u => u.id), pendingCount: 1 };
         // Add LevelUpRequest as component tag
         addComponent(world, playerEid, LevelUpRequest);
-        levelUpRequestStore.set(playerEid, req);
+        LevelUpRequest[playerEid] = req;
         (world as any).paused = true;
     }
 }

@@ -1,22 +1,18 @@
 import { query } from '../../bitEcs';
-import { Transform, Velocity, ExpOrb, positionStore, velocityStore, expOrbStore } from '../Components';
+import { Transform, Velocity, ExpOrb } from '../Components';
 
 export class MovementSystem {
     update(dt: number, world: any): void {
+        // 有位置，有速度的，处理移动
         for (const eid of query(world, [Transform, Velocity])) {
-            const tf = positionStore.get(eid)!;
-            const vel = velocityStore.get(eid)!;
-            tf.x += vel.x * dt;
-            tf.y += vel.y * dt;
+            Transform.x[eid] += Velocity.x[eid] * dt;
+            Transform.y[eid] += Velocity.y[eid] * dt;
         }
+        // 经验球的移动表现
         for (const eid of query(world, [ExpOrb])) {
-            const vel = velocityStore.get(eid);
-            if (vel && (vel.x !== 0 || vel.y !== 0)) continue;
-            const tf = positionStore.get(eid);
-            if (!tf) continue;
-            const orb = expOrbStore.get(eid)!;
-            orb.floatTimer += dt;
-            tf.y = orb.baseY + Math.sin(orb.floatTimer * 3) * 5;
+            if (Velocity.x[eid] !== 0 || Velocity.y[eid] !== 0) continue;
+            ExpOrb.floatTimer[eid] += dt;
+            Transform.y[eid] = ExpOrb.baseY[eid] + Math.sin(ExpOrb.floatTimer[eid] * 3) * 5;
         }
     }
 }
