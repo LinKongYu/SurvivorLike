@@ -163,11 +163,11 @@
       "__type__": "cc.Color",
       "r": 255,
       "g": 255,
-      "b": 0,
-      "a": 89
+      "b": 255,
+      "a": 255
     },
     "_spriteFrame": {
-      "__uuid__": "b730527c-3233-41c2-aaf7-7cdab58f9749@f9941",
+      "__uuid__": "14e778dd-6232-46e3-ae4b-a97997981880@f9941",
       "__expectedType__": "cc.SpriteFrame"
     },
     "_type": 1,
