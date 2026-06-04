@@ -164,10 +164,10 @@
       "r": 255,
       "g": 255,
       "b": 255,
-      "a": 132
+      "a": 255
     },
     "_spriteFrame": {
-      "__uuid__": "b730527c-3233-41c2-aaf7-7cdab58f9749@f9941",
+      "__uuid__": "0f65afc1-91f5-413f-8775-4e4c327db139@f9941",
       "__expectedType__": "cc.SpriteFrame"
     },
     "_type": 1,
@@ -238,7 +238,7 @@
     "node": {
       "__id__": 1
     },
-    "_enabled": true,
+    "_enabled": false,
     "__prefab": {
       "__id__": 11
     },
@@ -260,7 +260,7 @@
     "node": {
       "__id__": 1
     },
-    "_enabled": true,
+    "_enabled": false,
     "__prefab": {
       "__id__": 13
     },
