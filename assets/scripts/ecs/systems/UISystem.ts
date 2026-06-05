@@ -2,8 +2,10 @@ import {
     Node, Label, UITransform, Color, Size,
     Sprite, SpriteFrame, Texture2D, ImageAsset,
 } from 'cc';
-import { query, removeComponent } from '../../bitEcs';
-import { Health, PlayerInput, Level } from '../Components';
+import { removeComponent, entityExists } from '../../bitEcs';
+import { Health, Level } from '../Components';
+import { System } from '../System';
+import { GameWorld } from '../World';
 import { LevelUpRequest } from '../SkillComponents';
 import { getUpgradeById, pickRandomUpgrades } from '../UpgradePool';
 
@@ -11,8 +13,12 @@ import { getUpgradeById, pickRandomUpgrades } from '../UpgradePool';
  * UISystem — HUD + 升级面板 + GameOver
  * Priority: 95
  */
-export class UISystem {
+export class UISystem implements System {
+    readonly priority = 95;
+    readonly runWhenPaused = true;
+    readonly runWhenGameOver = true;
     private _rootNode: Node;
+    private _uiRootNode: Node | null = null;
     private _initialized = false;
     private _defaultSF: SpriteFrame | null = null;
 
@@ -33,7 +39,6 @@ export class UISystem {
     private _cachedExpRatio = -1;
     private _cachedLevel = -1;
 
-    private _gameTime = 0;
     private _gameOverShown = false;
 
     private _currentWorld: any = null;
@@ -43,20 +48,15 @@ export class UISystem {
         this._rootNode = rootNode;
     }
 
-    update(dt: number, world: any): void {
+    update(dt: number, world: GameWorld): void {
         if (!this._initialized) {
             this._defaultSF = this.createWhiteSpriteFrame();
             this.createUI();
             this._initialized = true;
         }
 
-        if (!world.paused && !world.gameOver) {
-            this._gameTime += dt;
-        }
-
-        const players = query(world, [PlayerInput]);
-        if (players.length === 0) return;
-        const playerEid = players[0];
+        const playerEid = world.playerEid;
+        if (playerEid < 0 || !entityExists(world, playerEid)) return;
 
         const hpRatio = Health.maxHp[playerEid] > 0 ? Health.hp[playerEid] / Health.maxHp[playerEid] : 0;
         if (Math.abs(hpRatio - this._cachedHpRatio) > 0.001) {
@@ -74,8 +74,8 @@ export class UISystem {
             this._levelLabel.string = `Lv.${Level.level[playerEid]}`;
         }
 
-        const min = Math.floor(this._gameTime / 60);
-        const sec = Math.floor(this._gameTime % 60);
+        const min = Math.floor(world.time / 60);
+        const sec = Math.floor(world.time % 60);
         this._timeLabel.string = `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
 
         const req = LevelUpRequest[playerEid];
@@ -124,6 +124,8 @@ export class UISystem {
     }
 
     private createUI(): void {
+        this._uiRootNode = new Node('GameUIRoot');
+        this._uiRootNode.setParent(this._rootNode);
         this.createHPBar();
         this.createExpBar();
         this.createLevelLabel();
@@ -132,13 +134,17 @@ export class UISystem {
         this.createGameOverPanel();
     }
 
+    private get uiRootNode(): Node {
+        return this._uiRootNode ?? this._rootNode;
+    }
+
     private createHPBar(): void {
-        const bg = this.createColoredRect(this._rootNode, 'HPBarBg', 200, 16, new Color(80, 0, 0, 255), 0, 0.5);
+        const bg = this.createColoredRect(this.uiRootNode, 'HPBarBg', 200, 16, new Color(80, 0, 0, 255), 0, 0.5);
         bg.setPosition(-200, 320, 0);
-        this._hpBarFill = this.createColoredRect(this._rootNode, 'HPBarFill', 200, 16, new Color(0, 200, 0, 255), 0, 0.5);
+        this._hpBarFill = this.createColoredRect(this.uiRootNode, 'HPBarFill', 200, 16, new Color(0, 200, 0, 255), 0, 0.5);
         this._hpBarFill.setPosition(-200, 320, 0);
         const lbl = new Node('HPLabel');
-        lbl.setParent(this._rootNode);
+        lbl.setParent(this.uiRootNode);
         lbl.setPosition(-100, 338, 0);
         lbl.addComponent(UITransform);
         const l = lbl.addComponent(Label);
@@ -158,9 +164,9 @@ export class UISystem {
     }
 
     private createExpBar(): void {
-        const bg = this.createColoredRect(this._rootNode, 'ExpBarBg', 200, 10, new Color(0, 0, 80, 255), 0, 0.5);
+        const bg = this.createColoredRect(this.uiRootNode, 'ExpBarBg', 200, 10, new Color(0, 0, 80, 255), 0, 0.5);
         bg.setPosition(-200, 298, 0);
-        this._expBarFill = this.createColoredRect(this._rootNode, 'ExpBarFill', 0, 10, new Color(50, 100, 255, 255), 0, 0.5);
+        this._expBarFill = this.createColoredRect(this.uiRootNode, 'ExpBarFill', 0, 10, new Color(50, 100, 255, 255), 0, 0.5);
         this._expBarFill.setPosition(-200, 298, 0);
     }
 
@@ -172,7 +178,7 @@ export class UISystem {
 
     private createLevelLabel(): void {
         const node = new Node('LevelText');
-        node.setParent(this._rootNode);
+        node.setParent(this.uiRootNode);
         node.setPosition(50, 320, 0);
         node.addComponent(UITransform);
         this._levelLabel = node.addComponent(Label);
@@ -182,7 +188,7 @@ export class UISystem {
 
     private createTimeLabel(): void {
         const node = new Node('TimeText');
-        node.setParent(this._rootNode);
+        node.setParent(this.uiRootNode);
         node.setPosition(150, 320, 0);
         node.addComponent(UITransform);
         this._timeLabel = node.addComponent(Label);
@@ -192,7 +198,7 @@ export class UISystem {
 
     private createLevelUpPanel(): void {
         this._levelUpPanel = new Node('LevelUpPanel');
-        this._levelUpPanel.setParent(this._rootNode);
+        this._levelUpPanel.setParent(this.uiRootNode);
         this._levelUpPanel.setPosition(0, 0, 0);
         this._levelUpPanel.active = false;
 
@@ -238,7 +244,7 @@ export class UISystem {
         }
     }
 
-    private showLevelUpPanel(world: any, playerEid: number, req: any): void {
+    private showLevelUpPanel(world: GameWorld, playerEid: number, req: any): void {
         this._levelUpPanel.active = true;
         for (let i = 0; i < 3; i++) {
             if (i < req.currentChoices.length) {
@@ -267,19 +273,30 @@ export class UISystem {
 
         req.pendingCount -= 1;
         if (req.pendingCount > 0) {
-            req.currentChoices = pickRandomUpgrades(world, playerEid, 3).map(u => u.id);
+            const nextChoices = pickRandomUpgrades(world, playerEid, 3).map(u => u.id);
+            if (nextChoices.length === 0) {
+                this.closeLevelUpPanel(world, playerEid);
+                return;
+            }
+            req.currentChoices = nextChoices;
             this.showLevelUpPanel(world, playerEid, req);
         } else {
-            delete LevelUpRequest[playerEid];
-            removeComponent(world, playerEid, LevelUpRequest);
-            world.paused = false;
-            this._levelUpPanel.active = false;
+            this.closeLevelUpPanel(world, playerEid);
         }
+    }
+
+    private closeLevelUpPanel(world: GameWorld, playerEid: number): void {
+        delete LevelUpRequest[playerEid];
+        removeComponent(world, playerEid, LevelUpRequest);
+        world.paused = false;
+        this._levelUpPanel.active = false;
+        this._currentWorld = null;
+        this._currentPlayerEid = -1;
     }
 
     private createGameOverPanel(): void {
         this._gameOverPanel = new Node('GameOverPanel');
-        this._gameOverPanel.setParent(this._rootNode);
+        this._gameOverPanel.setParent(this.uiRootNode);
         this._gameOverPanel.setPosition(0, 0, 0);
         this._gameOverPanel.active = false;
         this.createColoredRect(this._gameOverPanel, 'GOBg', 960, 640, new Color(0, 0, 0, 150)).setPosition(0, 0, 0);
@@ -292,5 +309,22 @@ export class UISystem {
         this._gameOverLabel = info.addComponent(Label);
         this._gameOverLabel.string = ''; this._gameOverLabel.fontSize = 24;
         this._gameOverLabel.color = new Color(255, 255, 255, 255);
+    }
+
+    destroy(): void {
+        if (this._uiRootNode && this._uiRootNode.isValid) {
+            this._uiRootNode.destroy();
+        }
+        if (this._defaultSF && this._defaultSF.isValid) {
+            this._defaultSF.destroy();
+        }
+        this._uiRootNode = null;
+        this._defaultSF = null;
+        this._cardNodes = [];
+        this._cardNameLabels = [];
+        this._cardDescLabels = [];
+        this._currentWorld = null;
+        this._currentPlayerEid = -1;
+        this._initialized = false;
     }
 }

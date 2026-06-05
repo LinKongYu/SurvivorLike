@@ -1,4 +1,6 @@
 import { query, addEntity } from '../../bitEcs';
+import { System } from '../System';
+import { GameWorld } from '../World';
 import {
     Transform, PlayerInput, Collider, DamageDealer, Owner,
     HitRecord, Lifetime, Render,
@@ -7,12 +9,14 @@ import { BladeAttack, BladeMarker } from '../SkillComponents';
 import { GameConfig } from '../GameConfig';
 import { findNearestEnemy } from '../Helpers';
 
-export class BladeSystem {
-    update(dt: number, world: any): void {
+export class BladeSystem implements System {
+    readonly priority = 22;
+
+    update(dt: number, world: GameWorld): void {
         this.triggerBlades(dt, world);
     }
 
-    private triggerBlades(dt: number, world: any): void {
+    private triggerBlades(dt: number, world: GameWorld): void {
         for (const pid of query(world, [Transform, PlayerInput, BladeAttack])) {
             BladeAttack.timer[pid] += dt;
             if (BladeAttack.timer[pid] < BladeAttack.cooldown[pid]) continue;

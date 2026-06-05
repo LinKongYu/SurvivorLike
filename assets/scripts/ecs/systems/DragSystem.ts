@@ -1,11 +1,18 @@
 import { query, removeComponent } from '../../bitEcs';
+import { System } from '../System';
+import { GameWorld } from '../World';
 import { Velocity, Drag } from '../Components';
 
-export class DragSystem {
-    update(dt: number, world: any): void {
+export class DragSystem implements System {
+    readonly priority = 11;
+
+    update(dt: number, world: GameWorld): void {
         const toRemove: number[] = [];
         for (const eid of query(world, [Drag])) {
-            if (Velocity.x[eid] === 0 && Velocity.y[eid] === 0) continue;
+            if (Velocity.x[eid] === 0 && Velocity.y[eid] === 0) {
+                toRemove.push(eid);
+                continue;
+            }
             const decay = Math.exp(-Drag.coefficient[eid] * dt);
             Velocity.x[eid] *= decay;
             Velocity.y[eid] *= decay;

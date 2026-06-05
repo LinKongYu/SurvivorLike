@@ -1,5 +1,6 @@
 import { _decorator, Component } from 'cc';
-import { createGameWorld } from './ecs/World';
+import { createGameWorld, GameWorld } from './ecs/World';
+import { System } from './ecs/System';
 import { PrefabPool } from './ecs/PrefabPool';
 import { GameConfig } from './ecs/GameConfig';
 import { createPlayer, createSpawner, createEnemy } from './ecs/EntityFactory';
@@ -23,17 +24,17 @@ import { UISystem } from './ecs/systems/UISystem';
 
 const { ccclass } = _decorator;
 
-type GameSystemRunner = {
-    sys: { update(dt: number, world: any): void; destroy?(): void };
-    priority: number;
-    runWhenPaused?: boolean;
-    runWhenGameOver?: boolean;
-};
-
+/**
+ * GameEntry — 挂在场景根节点上的唯一入口组件。
+ *
+ * 职责：加载资源/配置 → 创建世界与所有系统 → 每帧按 priority 驱动系统。
+ * 想新增/调整系统：只需在 initGame 的列表里增删一行；执行顺序由各系统自带的
+ * priority 决定（见各 System 类），这里不再维护任何优先级数字。
+ */
 @ccclass('GameEntry')
 export class GameEntry extends Component {
-    private _world: any = null;
-    private _systems: GameSystemRunner[] = [];
+    private _world: GameWorld | null = null;
+    private _systems: System[] = [];
 
     start(): void {
         Promise.all([PrefabPool.loadAll(), GameConfig.loadAll()])
@@ -44,49 +45,57 @@ export class GameEntry extends Component {
     private initGame(): void {
         const world = createGameWorld();
 
+        // 系统清单：在此 new 一下即可接入；顺序无所谓，下面会按 priority 排序。
         this._systems = [
-            { sys: new InputSystem(), priority: 0 },
-            { sys: new PlayerControlSystem(), priority: 2 },
-            { sys: new MonsterChaseSystem(), priority: 3 },
-            { sys: new MagnetSystem(), priority: 4 },
-            { sys: new MovementSystem(), priority: 10 },
-            { sys: new DragSystem(), priority: 11 },
-            { sys: new SeparationSystem(), priority: 15 },
-            { sys: new CombatSystem(), priority: 20 },
-            { sys: new BladeSystem(), priority: 22 },
-            { sys: new OrbitSystem(), priority: 23 },
-            { sys: new BombSystem(), priority: 24 },
-            { sys: new ExperienceSystem(), priority: 30 },
-            { sys: new SpawnerSystem(), priority: 40 },
-            { sys: new LifetimeSystem(), priority: 50 },
-            { sys: new RenderSystem(this.node), priority: 90, runWhenPaused: true, runWhenGameOver: true },
-            { sys: new UISystem(this.node), priority: 95, runWhenPaused: true, runWhenGameOver: true },
+            new InputSystem(),
+            new PlayerControlSystem(),
+            new MonsterChaseSystem(),
+            new MagnetSystem(),
+            new MovementSystem(),
+            new DragSystem(),
+            new SeparationSystem(),
+            new CombatSystem(),
+            new BladeSystem(),
+            new OrbitSystem(),
+            new BombSystem(),
+            new ExperienceSystem(),
+            new SpawnerSystem(),
+            new LifetimeSystem(),
+            new RenderSystem(this.node),
+            new UISystem(this.node),
         ].sort((a, b) => a.priority - b.priority);
 
-        const playerEid = createPlayer(world, 0, 0);
-        createSpawner(world, playerEid);
+        world.playerEid = createPlayer(world, 0, 0);
+        createSpawner(world, world.playerEid);
 
         const cfg = GameConfig.spawner;
+        const px = Transform.x[world.playerEid];
+        const py = Transform.y[world.playerEid];
         for (let i = 0; i < cfg.initialSpawnCount; i++) {
             const angle = Math.random() * Math.PI * 2;
             const dist = cfg.minSpawnDistance + Math.random() * (cfg.spawnRadius - cfg.minSpawnDistance);
-            createEnemy(world, Transform.x[playerEid] + Math.cos(angle) * dist, Transform.y[playerEid] + Math.sin(angle) * dist, playerEid, 1);
+            createEnemy(world, px + Math.cos(angle) * dist, py + Math.sin(angle) * dist, world.playerEid, 1);
         }
 
         this._world = world;
     }
 
     update(dt: number): void {
-        if (!this._world) return;
-        for (const { sys, runWhenPaused, runWhenGameOver } of this._systems) {
-            if (this._world.gameOver && !runWhenGameOver) continue;
-            if (this._world.paused && !runWhenPaused) continue;
-            sys.update(dt, this._world);
+        const world = this._world;
+        if (!world) return;
+
+        // 全局存活计时：仅正常游玩时累加（暂停/结束时冻结），供 UI 与难度读取。
+        if (!world.paused && !world.gameOver) world.time += dt;
+
+        for (const sys of this._systems) {
+            if (world.gameOver && !sys.runWhenGameOver) continue;
+            if (world.paused && !sys.runWhenPaused) continue;
+            sys.update(dt, world);
         }
     }
 
     onDestroy(): void {
-        for (const { sys } of this._systems) {
+        for (const sys of this._systems) {
             sys.destroy?.();
         }
     }

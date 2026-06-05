@@ -1,4 +1,6 @@
 import { query, addEntity, removeEntity, entityExists } from '../../bitEcs';
+import { System } from '../System';
+import { GameWorld } from '../World';
 import {
     Transform, PlayerInput, Collider, DamageDealer, Owner,
     HitRecord, Lifetime, Render, clearEntityData,
@@ -6,13 +8,15 @@ import {
 import { BombAttack, BombMarker, ExplosionMarker } from '../SkillComponents';
 import { GameConfig } from '../GameConfig';
 
-export class BombSystem {
-    update(dt: number, world: any): void {
+export class BombSystem implements System {
+    readonly priority = 24;
+
+    update(dt: number, world: GameWorld): void {
         this.triggerBombs(dt, world);
         this.tickBombs(dt, world);
     }
 
-    private triggerBombs(dt: number, world: any): void {
+    private triggerBombs(dt: number, world: GameWorld): void {
         for (const pid of query(world, [Transform, PlayerInput, BombAttack])) {
             BombAttack.timer[pid] += dt;
             if (BombAttack.timer[pid] < BombAttack.cooldown[pid]) continue;
@@ -36,7 +40,7 @@ export class BombSystem {
         }
     }
 
-    private tickBombs(dt: number, world: any): void {
+    private tickBombs(dt: number, world: GameWorld): void {
         for (const eid of query(world, [BombMarker])) {
             BombMarker.timer[eid] += dt;
             if (BombMarker.timer[eid] < BombMarker.fuseTime[eid]) continue;

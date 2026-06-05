@@ -9,8 +9,9 @@ import {
     Render,
 } from './Components';
 import { GameConfig } from './GameConfig';
+import { GameWorld } from './World';
 
-export function createPlayer(world: any, x: number, y: number): number {
+export function createPlayer(world: GameWorld, x: number, y: number): number {
     const cfg = GameConfig.player;
     const atk = cfg.initialAttack;
     const eid = addEntity(world, Transform, Velocity, Camp, PlayerInput, AutoAttack, Level, Health, Render);
@@ -39,7 +40,7 @@ export function createPlayer(world: any, x: number, y: number): number {
     return eid;
 }
 
-export function createEnemy(world: any, x: number, y: number, playerEid: number, difficulty: number): number {
+export function createEnemy(world: GameWorld, x: number, y: number, playerEid: number, difficulty: number): number {
     const cfg = GameConfig.enemyDefault;
     const step = difficulty - 1;
     const hpMul = 1 + step * cfg.hpScalePerLevel;
@@ -67,7 +68,7 @@ export function createEnemy(world: any, x: number, y: number, playerEid: number,
     return eid;
 }
 
-export function createSpawner(world: any, playerEid: number): number {
+export function createSpawner(world: GameWorld, playerEid: number): number {
     const cfg = GameConfig.spawner;
     const eid = addEntity(world, Spawner);
     Spawner.timer[eid] = 0;

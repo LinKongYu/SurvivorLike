@@ -1,25 +1,35 @@
 import { Node, UITransform, Size } from 'cc';
 import { query } from '../../bitEcs';
+import { System } from '../System';
+import { GameWorld } from '../World';
 import { Render, Transform } from '../Components';
 import { PrefabPool } from '../PrefabPool';
 
-export class RenderSystem {
+export class RenderSystem implements System {
+    readonly priority = 90;
+    readonly runWhenPaused = true;
+    readonly runWhenGameOver = true;
+
     private _rootNode: Node;
     private _trackedEntities: Map<number, Node> = new Map();
     constructor(rootNode: Node) { this._rootNode = rootNode; }
 
-    update(_dt: number, world: any): void {
-        for (const eid of query(world, [Render])) {
+    update(_dt: number, world: GameWorld): void {
+        const activeRenderEntities = new Set<number>();
+
+        for (const eid of query(world, [Render, Transform])) {
+            activeRenderEntities.add(eid);
             const rd = Render[eid];
             if (!rd.created) this.createNode(eid, rd);
-            if (rd.node) {
+            if (rd.node && rd.node.isValid) {
                 rd.node.setPosition(Transform.x[eid], Transform.y[eid], 0);
                 rd.node.angle = rd.rotation;
             }
         }
-        // Clean up Nodes for entities that no longer have Render data
+
+        // Clean up nodes for entities that no longer match the render query.
         for (const [eid, node] of this._trackedEntities) {
-            if (!Render[eid]) {
+            if (!activeRenderEntities.has(eid)) {
                 if (node.isValid) node.destroy();
                 this._trackedEntities.delete(eid);
             }
@@ -49,5 +59,12 @@ export class RenderSystem {
         rd.node = node;
         rd.created = true;
         this._trackedEntities.set(eid, node);
+    }
+
+    destroy(): void {
+        for (const node of this._trackedEntities.values()) {
+            if (node.isValid) node.destroy();
+        }
+        this._trackedEntities.clear();
     }
 }

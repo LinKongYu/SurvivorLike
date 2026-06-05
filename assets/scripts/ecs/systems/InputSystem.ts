@@ -1,5 +1,7 @@
 import { input, Input, EventKeyboard, KeyCode } from 'cc';
 import { query } from '../../bitEcs';
+import { System } from '../System';
+import { GameWorld } from '../World';
 import { PlayerInput } from '../Components';
 
 /**
@@ -8,11 +10,13 @@ import { PlayerInput } from '../Components';
  *
  * 每帧读取键盘状态，写入所有玩家实体的 PlayerInput 数据。
  */
-export class InputSystem {
+export class InputSystem implements System {
+    readonly priority = 0;
+
     private _keys: Set<number> = new Set();
     private _registered = false;
 
-    update(_dt: number, world: any): void {
+    update(_dt: number, world: GameWorld): void {
         if (!this._registered) {
             input.on(Input.EventType.KEY_DOWN, this.onKeyDown, this);
             input.on(Input.EventType.KEY_UP, this.onKeyUp, this);

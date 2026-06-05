@@ -1,4 +1,6 @@
 import { query, addEntity, removeEntity, entityExists } from '../../bitEcs';
+import { System } from '../System';
+import { GameWorld } from '../World';
 import {
     Transform, Collider, DamageDealer, Owner,
     HitRecord, Render, clearEntityData,
@@ -6,13 +8,15 @@ import {
 import { OrbitAttack, OrbitingSword } from '../SkillComponents';
 import { GameConfig } from '../GameConfig';
 
-export class OrbitSystem {
-    update(dt: number, world: any): void {
+export class OrbitSystem implements System {
+    readonly priority = 23;
+
+    update(dt: number, world: GameWorld): void {
         this.rebuildIfDirty(world);
         this.updateSwords(dt, world);
     }
 
-    private rebuildIfDirty(world: any): void {
+    private rebuildIfDirty(world: GameWorld): void {
         for (const eid of query(world, [OrbitAttack])) {
             if (!OrbitAttack.dirty[eid]) continue;
             OrbitAttack.dirty[eid] = false;
@@ -50,7 +54,7 @@ export class OrbitSystem {
         }
     }
 
-    private updateSwords(dt: number, world: any): void {
+    private updateSwords(dt: number, world: GameWorld): void {
         for (const eid of query(world, [OrbitingSword])) {
             const ownerEid = OrbitingSword.ownerEntityId[eid];
             if (!entityExists(world, ownerEid)) {

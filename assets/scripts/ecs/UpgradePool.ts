@@ -2,16 +2,17 @@ import { hasComponent, addComponent } from '../bitEcs';
 import { AutoAttack } from './Components';
 import { BladeAttack, OrbitAttack, BombAttack } from './SkillComponents';
 import { GameConfig } from './GameConfig';
+import { GameWorld } from './World';
 
 export interface UpgradeDef {
     id: string;
     name: string;
     desc: string;
-    canApply(world: any, playerEid: number): boolean;
-    apply(world: any, playerEid: number): void;
+    canApply(world: GameWorld, playerEid: number): boolean;
+    apply(world: GameWorld, playerEid: number): void;
 }
 
-function hasAutoAttack(world: any, eid: number): boolean {
+function hasAutoAttack(world: GameWorld, eid: number): boolean {
     return hasComponent(world, eid, AutoAttack);
 }
 
@@ -128,7 +129,7 @@ export const UPGRADE_POOL: UpgradeDef[] = [
     },
 ];
 
-export function pickRandomUpgrades(world: any, playerEid: number, n = 3): UpgradeDef[] {
+export function pickRandomUpgrades(world: GameWorld, playerEid: number, n = 3): UpgradeDef[] {
     const eligible = UPGRADE_POOL.filter(u => u.canApply(world, playerEid));
     if (eligible.length <= n) return eligible.slice();
     const indices: number[] = [];

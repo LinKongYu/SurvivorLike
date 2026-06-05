@@ -75,6 +75,11 @@ export interface ContactSkillConfig {
     enemyPlayerHitRadius: number;
 }
 
+export interface KnockbackConfig {
+    /** 击退速度阻尼系数：越小滑行越远、击退越明显（典型 4~8） */
+    drag: number;
+}
+
 export interface BladeSkillConfig {
     cooldown: number;
     damage: number;
@@ -112,6 +117,7 @@ export interface SkillsConfig {
     bullet: BulletSkillConfig;
     expOrb: ExpOrbSkillConfig;
     contact: ContactSkillConfig;
+    knockback: KnockbackConfig;
     blade: BladeSkillConfig;
     orbit: OrbitSkillConfig;
     bomb: BombSkillConfig;

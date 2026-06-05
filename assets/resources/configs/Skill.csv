@@ -17,6 +17,9 @@ expOrb,collectDistance,20
 # ── 玩家与敌人接触判定 ──
 contact,enemyPlayerHitRadius,40
 # contact.enemyPlayerHitRadius: 敌人对玩家造成接触伤害的判定半径(像素)
+# ── 通用击退 ──
+knockback,drag,5
+# knockback.drag: 击退速度阻尼系数，越小滑行越远(击退越明显)；所有命中技能共用
 # ── 刀(扇形挥砍) ──
 blade,cooldown,1.0
 # blade.cooldown: 挥砍冷却(秒)

@@ -4,12 +4,13 @@
 
 import { query } from '../bitEcs';
 import { Transform, Health, Camp } from './Components';
+import { GameWorld } from './World';
 
 /**
  * 查找距离指定位置最近的存活敌人
  */
 export function findNearestEnemy(
-    world: any, fromX: number, fromY: number, maxRange?: number,
+    world: GameWorld, fromX: number, fromY: number, maxRange?: number,
 ): { eid: number; distSq: number } | null {
     let nearestDistSq = Infinity;
     let nearestEid = -1;

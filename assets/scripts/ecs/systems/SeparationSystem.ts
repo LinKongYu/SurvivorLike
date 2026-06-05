@@ -1,8 +1,12 @@
 import { query } from '../../bitEcs';
+import { System } from '../System';
+import { GameWorld } from '../World';
 import { Transform, Collider, Camp } from '../Components';
 
-export class SeparationSystem {
-    update(_dt: number, world: any): void {
+export class SeparationSystem implements System {
+    readonly priority = 15;
+
+    update(_dt: number, world: GameWorld): void {
         const enemies = query(world, [Transform, Collider, Camp]);
         const n = enemies.length;
         if (n < 2) return;

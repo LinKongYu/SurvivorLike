@@ -1,11 +1,13 @@
-import { query } from '../../bitEcs';
-import { Transform, PlayerInput, ExpOrb, Velocity } from '../Components';
+import { entityExists, query } from '../../bitEcs';
+import { Transform, ExpOrb, Velocity } from '../Components';
+import { System } from '../System';
+import { GameWorld } from '../World';
 
-export class MagnetSystem {
-    update(_dt: number, world: any): void {
-        const players = query(world, [Transform, PlayerInput]);
-        if (players.length === 0) return;
-        const playerEid = players[0];
+export class MagnetSystem implements System {
+    readonly priority = 4;
+    update(_dt: number, world: GameWorld): void {
+        const playerEid = world.playerEid;
+        if (playerEid < 0 || !entityExists(world, playerEid)) return;
         for (const eid of query(world, [Transform, ExpOrb, Velocity])) {
             const dx = Transform.x[playerEid] - Transform.x[eid], dy = Transform.y[playerEid] - Transform.y[eid];
             const distSq = dx * dx + dy * dy;

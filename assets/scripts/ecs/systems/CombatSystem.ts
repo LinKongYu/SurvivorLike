@@ -7,19 +7,23 @@ import {
 import { BladeMarker } from '../SkillComponents';
 import { GameConfig } from '../GameConfig';
 import { findNearestEnemy } from '../Helpers';
+import { System } from '../System';
+import { GameWorld } from '../World';
 
 /**
  * CombatSystem - auto attack, damage collision, health and contact damage.
  */
-export class CombatSystem {
-    update(dt: number, world: any): void {
+export class CombatSystem implements System {
+    readonly priority = 20;
+
+    update(dt: number, world: GameWorld): void {
         this.tickHitRecords(dt, world);
         this.autoAttack(dt, world);
         this.damageEnemyCollision(world);
         this.enemyPlayerCollision(world);
     }
 
-    private autoAttack(dt: number, world: any): void {
+    private autoAttack(dt: number, world: GameWorld): void {
         for (const pid of query(world, [Transform, PlayerInput, AutoAttack])) {
             AutoAttack.timer[pid] += dt;
             if (AutoAttack.timer[pid] < AutoAttack.cooldown[pid]) continue;
@@ -57,7 +61,7 @@ export class CombatSystem {
         }
     }
 
-    private tickHitRecords(dt: number, world: any): void {
+    private tickHitRecords(dt: number, world: GameWorld): void {
         for (const eid of query(world, [HitRecord])) {
             const records = HitRecord[eid];
             if (!records) continue;
@@ -70,12 +74,16 @@ export class CombatSystem {
         }
     }
 
-    private damageEnemyCollision(world: any): void {
-        for (const damageEid of query(world, [Transform, DamageDealer, Owner, Collider])) {
+    private damageEnemyCollision(world: GameWorld): void {
+        // 伤害源查询带 commit，会先冲刷上一帧的待删除实体；敌人集合每帧只查一次，
+        // 避免在外层循环里为每个伤害实体重复构建查询。
+        const damagers = query(world, [Transform, DamageDealer, Owner, Collider]);
+        const enemies = query(world, [Transform, Health, Camp, Collider], isNested);
+        for (const damageEid of damagers) {
             const records = HitRecord[damageEid];
             const skillId = DamageDealer.skillId[damageEid];
 
-            for (const enemyEid of query(world, [Transform, Health, Camp, Collider], isNested)) {
+            for (const enemyEid of enemies) {
                 if (Camp.value[enemyEid] !== 'enemy') continue;
                 if (Health.hp[enemyEid] <= 0) continue;
                 if (records?.has(enemyEid)) continue;
@@ -113,7 +121,7 @@ export class CombatSystem {
         return distSq < radius * radius;
     }
 
-    private applyKnockback(world: any, eid: number, dx: number, dy: number, speed: number): void {
+    private applyKnockback(world: GameWorld, eid: number, dx: number, dy: number, speed: number): void {
         if (speed <= 0) return;
         const dist = Math.sqrt(dx * dx + dy * dy);
         const nx = dist > 0.001 ? dx / dist : 1;
@@ -121,7 +129,7 @@ export class CombatSystem {
         Velocity.x[eid] += nx * speed;
         Velocity.y[eid] += ny * speed;
         addComponent(world, eid, Drag);
-        Drag.coefficient[eid] = 8;
+        Drag.coefficient[eid] = GameConfig.skills.knockback.drag;
     }
 
     private getKnockbackSpeed(skillId: string): number {
@@ -144,14 +152,16 @@ export class CombatSystem {
         return d;
     }
 
-    private enemyPlayerCollision(world: any): void {
+    private enemyPlayerCollision(world: GameWorld): void {
         const hitRadius = GameConfig.skills.contact.enemyPlayerHitRadius;
         const hitDistSq = hitRadius * hitRadius;
 
-        for (const playerEid of query(world, [Transform, Health, PlayerInput])) {
+        const players = query(world, [Transform, Health, PlayerInput]);
+        const enemies = query(world, [Transform, Camp], isNested);
+        for (const playerEid of players) {
             if (Health.hp[playerEid] <= 0 || Health.invincibleTimer[playerEid] > 0) continue;
 
-            for (const enemyEid of query(world, [Transform, Camp], isNested)) {
+            for (const enemyEid of enemies) {
                 if (Camp.value[enemyEid] !== 'enemy') continue;
                 if (Health.hp[enemyEid] <= 0) continue;
 
