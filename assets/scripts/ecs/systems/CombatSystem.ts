@@ -121,15 +121,33 @@ export class CombatSystem implements System {
         return distSq < radius * radius;
     }
 
-    private applyKnockback(world: GameWorld, eid: number, dx: number, dy: number, speed: number): void {
+    private applyKnockback(world: GameWorld, eid: number, _dx: number, _dy: number, speed: number): void {
         if (speed <= 0) return;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        const nx = dist > 0.001 ? dx / dist : 1;
-        const ny = dist > 0.001 ? dy / dist : 0;
+
+        const vx = Velocity.x[eid] ?? 0;
+        const vy = Velocity.y[eid] ?? 0;
+        const vLen = Math.sqrt(vx * vx + vy * vy);
+
+        let nx: number;
+        let ny: number;
+        if (vLen > 0.01) {
+            nx = -vx / vLen;
+            ny = -vy / vLen;
+        } else {
+            const dist = Math.sqrt(_dx * _dx + _dy * _dy);
+            nx = dist > 0.001 ? _dx / dist : 1;
+            ny = dist > 0.001 ? _dy / dist : 0;
+        }
+
         Velocity.x[eid] += nx * speed;
         Velocity.y[eid] += ny * speed;
         addComponent(world, eid, Drag);
         Drag.coefficient[eid] = GameConfig.skills.knockback.drag;
+    }
+
+    // 受击闪白
+    private hitEffect() {
+
     }
 
     private getKnockbackSpeed(skillId: string): number {
