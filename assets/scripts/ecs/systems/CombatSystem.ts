@@ -1,7 +1,7 @@
 import { query, addEntity, addComponent, removeEntity, entityExists, isNested } from '../../bitEcs';
 import {
     Transform, Velocity, PlayerInput, AutoAttack, Camp, Collider,
-    DamageDealer, Owner, HitRecord, Drag, Health, Lifetime,
+    DamageDealer, Owner, HitRecord, Drag, Health, Lifetime, HitFlash,
     Render, clearEntityData,
 } from '../Components';
 import { BladeMarker } from '../SkillComponents';
@@ -143,11 +143,15 @@ export class CombatSystem implements System {
         Velocity.y[eid] += ny * speed;
         addComponent(world, eid, Drag);
         Drag.coefficient[eid] = GameConfig.skills.knockback.drag;
+
+        this._triggerHitFlash(world, eid);
     }
 
-    // 受击闪白
-    private hitEffect() {
-
+    private _triggerHitFlash(world: GameWorld, eid: number): void {
+        addComponent(world, eid, HitFlash);
+        HitFlash.color[eid] = [1, 0, 0, 1];
+        HitFlash.remaining[eid] = 0.15;
+        HitFlash.totalDuration[eid] = 0.15;
     }
 
     private getKnockbackSpeed(skillId: string): number {

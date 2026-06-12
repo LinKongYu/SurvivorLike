@@ -13,6 +13,7 @@ import { MovementSystem } from './ecs/systems/MovementSystem';
 import { DragSystem } from './ecs/systems/DragSystem';
 import { SeparationSystem } from './ecs/systems/SeparationSystem';
 import { CombatSystem } from './ecs/systems/CombatSystem';
+import { HitFlashSystem } from './ecs/systems/HitFlashSystem';
 import { BladeSystem } from './ecs/systems/BladeSystem';
 import { OrbitSystem } from './ecs/systems/OrbitSystem';
 import { BombSystem } from './ecs/systems/BombSystem';
@@ -55,6 +56,7 @@ export class GameEntry extends Component {
             new DragSystem(),
             new SeparationSystem(),
             new CombatSystem(),
+            new HitFlashSystem(),
             new BladeSystem(),
             new OrbitSystem(),
             new BombSystem(),

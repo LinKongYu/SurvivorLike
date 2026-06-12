@@ -127,11 +127,17 @@ export const Spawner = {
     playerEntityId: [] as number[],
 };
 
+export const HitFlash = {
+    color: [] as [number, number, number, number][],
+    remaining: [] as number[],
+    totalDuration: [] as number[],
+};
+
 const COMPONENTS_WITH_DATA = [
     Transform, Velocity, Camp, Owner, Render,
     Health, DamageDealer, Collider, HitRecord, Drag,
     Lifetime, PlayerInput, AutoAttack, Level,
-    MoveToTarget, ExpOrb, ExpReward, Spawner,
+    MoveToTarget, ExpOrb, ExpReward, Spawner, HitFlash,
 ];
 
 function clearComponentData(eid: number, component: any): void {

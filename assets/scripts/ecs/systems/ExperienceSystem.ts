@@ -9,6 +9,7 @@ import { LevelUpRequest } from '../SkillComponents';
 import { Render } from '../Components';
 import { pickRandomUpgrades } from '../UpgradePool';
 import { GameConfig } from '../GameConfig';
+import { resetHitFlashMaterial } from './HitFlashSystem';
 
 /**
  * ExperienceSystem — 经验系统
@@ -42,7 +43,7 @@ export class ExperienceSystem implements System {
                 ExpOrb.baseY[orb] = Transform.y[eid];
                 Render[orb] = { prefabName: 'ExpOrb', rotation: 0, width: 0, height: 0, node: null, created: false };
 
-                if (entityExists(world, eid)) { clearEntityData(eid); removeEntity(world, eid); }
+                if (entityExists(world, eid)) { resetHitFlashMaterial(eid); clearEntityData(eid); removeEntity(world, eid); }
             }
         }
     }

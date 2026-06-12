@@ -22,16 +22,16 @@ const { ccclass, property } = _decorator;
 export class FlySwordTest extends SkillTestBase {
 
     @property({ displayName: '飞剑数量', range: [1, 12, 1] })
-    swordCount: number = 3;
+    swordCount: number = 10;
 
     @property({ displayName: '伤害', range: [1, 200, 1] })
-    damage: number = 0;
+    damage: number = 15;
 
     @property({ displayName: '环绕半径', range: [30, 500, 5] })
     orbitRadius: number = 150;
 
     @property({ displayName: '环绕速度 (rad/s)', range: [0.2, 100, 0.1] })
-    angularSpeed: number = 2;
+    angularSpeed: number = 10;
 
     private _lastSwordCount: number = -1;
     private _lastDamage: number = -1;

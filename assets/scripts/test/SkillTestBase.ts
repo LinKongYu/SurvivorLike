@@ -1,4 +1,4 @@
-import { _decorator, Component } from 'cc';
+import { _decorator, Component, Label } from 'cc';
 import { addEntity, entityExists, query, removeEntity } from '../bitEcs';
 import { createGameWorld, GameWorld } from '../ecs/World';
 import { System } from '../ecs/System';
@@ -15,6 +15,7 @@ import { MovementSystem } from '../ecs/systems/MovementSystem';
 import { DragSystem } from '../ecs/systems/DragSystem';
 import { SeparationSystem } from '../ecs/systems/SeparationSystem';
 import { CombatSystem } from '../ecs/systems/CombatSystem';
+import { HitFlashSystem, resetHitFlashMaterial } from '../ecs/systems/HitFlashSystem';
 import { LifetimeSystem } from '../ecs/systems/LifetimeSystem';
 import { RenderSystem } from '../ecs/systems/RenderSystem';
 
@@ -35,11 +36,11 @@ export abstract class SkillTestBase extends Component {
     @property({ displayName: '启用敌人生成' })
     spawnEnabled: boolean = true;
 
-    @property({ displayName: '生成间隔 (秒)', range: [0.2, 10, 0.1] })
-    spawnInterval: number = 2;
+    @property({ displayName: '生成间隔 (秒)', range: [0.01, 10, 0.01] })
+    spawnInterval: number = 0.1;
 
-    @property({ displayName: '最大敌人数', range: [1, 100, 1] })
-    maxEnemyCount: number = 30;
+    @property({ displayName: '最大敌人数', range: [1, 10000, 1] })
+    maxEnemyCount: number = 100;
 
     @property({ displayName: '敌人生命值', range: [1, 1000, 5] })
     enemyHP: number = 20;
@@ -48,13 +49,16 @@ export abstract class SkillTestBase extends Component {
     enemySpeed: number = 150;
 
     @property({ displayName: '生成半径', tooltip: '敌人出现的最远距离', range: [200, 1500, 10] })
-    spawnRadius: number = 600;
+    spawnRadius: number = 900;
 
     @property({ displayName: '最小生成距离', range: [50, 800, 10] })
-    minSpawnDistance: number = 400;
+    minSpawnDistance: number = 800;
 
     @property({ displayName: '碰触销毁敌人', tooltip: '敌人碰到主角时自动销毁' })
     destroyEnemyOnReach: boolean = true;
+
+    @property({ displayName: '当前敌人数量', tooltip: '显示当前敌人数量文本', type: Label })
+    enemyCntLable: Label = null!;
 
     protected _world: GameWorld | null = null;
     protected _systems: System[] = [];
@@ -89,6 +93,8 @@ export abstract class SkillTestBase extends Component {
         }
 
         this._cleanupEnemies(world);
+
+        this.enemyCntLable.string = "数量：" + Render.length;
     }
 
     onDestroy(): void {
@@ -136,6 +142,7 @@ export abstract class SkillTestBase extends Component {
             new DragSystem(),
             new SeparationSystem(),
             new CombatSystem(),
+            new HitFlashSystem(),
             new LifetimeSystem(),
             new RenderSystem(this.node),
         ];
@@ -194,6 +201,7 @@ export abstract class SkillTestBase extends Component {
 
             if (dead || reached) {
                 if (entityExists(world, eid)) {
+                    resetHitFlashMaterial(eid);
                     clearEntityData(eid);
                     removeEntity(world, eid);
                 }
