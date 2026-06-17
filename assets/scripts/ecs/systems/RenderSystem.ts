@@ -4,9 +4,10 @@ import { System } from '../System';
 import { GameWorld } from '../World';
 import { Render, Transform } from '../Components';
 import { PrefabPool } from '../PrefabPool';
+import { SystemPriority } from '../Schedule';
 
 export class RenderSystem implements System {
-    readonly priority = 90;
+    readonly priority = SystemPriority.Render;
     readonly runWhenPaused = true;
     readonly runWhenGameOver = true;
 

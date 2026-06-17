@@ -2,9 +2,10 @@ import { query } from '../../bitEcs';
 import { System } from '../System';
 import { GameWorld } from '../World';
 import { Transform, Velocity, ExpOrb } from '../Components';
+import { SystemPriority } from '../Schedule';
 
 export class MovementSystem implements System {
-    readonly priority = 10;
+    readonly priority = SystemPriority.Movement;
 
     update(dt: number, world: GameWorld): void {
         // 有位置，有速度的，处理移动

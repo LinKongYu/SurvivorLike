@@ -8,7 +8,8 @@
       "Bash(uuidgen)",
       "Bash(python3 -c \"import uuid; print\\(uuid.uuid4\\(\\)\\); print\\(uuid.uuid4\\(\\)\\); print\\(uuid.uuid4\\(\\)\\); print\\(uuid.uuid4\\(\\)\\); print\\(uuid.uuid4\\(\\)\\)\")",
       "Bash(node *)",
-      "Bash(node_modules/.bin/tsc -p temp/tscheck/tsconfig.json)"
+      "Bash(node_modules/.bin/tsc -p temp/tscheck/tsconfig.json)",
+      "Bash(grep -oE '[a-f0-9]{8,}@?[a-f0-9]*' assets/scenes/MainScene.scene)"
     ]
   }
 }

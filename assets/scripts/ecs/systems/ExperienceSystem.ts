@@ -1,22 +1,22 @@
-import { query, addEntity, addComponent, removeEntity, entityExists } from '../../bitEcs';
+import { query, addEntity, addComponent, entityExists } from '../../bitEcs';
 import {
     Transform, Velocity, Health, Camp, Level, ExpOrb, ExpReward,
-    clearEntityData,
+    Render, makeRender,
 } from '../Components';
 import { System } from '../System';
 import { GameWorld } from '../World';
 import { LevelUpRequest } from '../SkillComponents';
-import { Render } from '../Components';
+import { destroyEntity } from '../Entities';
 import { pickRandomUpgrades } from '../UpgradePool';
 import { GameConfig } from '../GameConfig';
+import { SystemPriority } from '../Schedule';
 import { resetHitFlashMaterial } from './HitFlashSystem';
 
 /**
- * ExperienceSystem — 经验系统
- * Priority: 30
+ * ExperienceSystem — 经验系统：敌人死亡掉落经验球、无敌计时、拾取与升级触发。
  */
 export class ExperienceSystem implements System {
-    readonly priority = 30;
+    readonly priority = SystemPriority.Experience;
 
     update(dt: number, world: GameWorld): void {
         this.handleEnemyDeath(world);
@@ -41,9 +41,10 @@ export class ExperienceSystem implements System {
                 ExpOrb.magnetSpeed[orb] = cfg.attractSpeed;
                 ExpOrb.floatTimer[orb] = Math.random() * Math.PI * 2;
                 ExpOrb.baseY[orb] = Transform.y[eid];
-                Render[orb] = { prefabName: 'ExpOrb', rotation: 0, width: 0, height: 0, node: null, created: false };
+                Render[orb] = makeRender('ExpOrb');
 
-                if (entityExists(world, eid)) { resetHitFlashMaterial(eid); clearEntityData(eid); removeEntity(world, eid); }
+                resetHitFlashMaterial(eid);
+                destroyEntity(world, eid);
             }
         }
     }
@@ -72,7 +73,7 @@ export class ExperienceSystem implements System {
                     Level.expToNext[playerEid] = Math.max(1, Math.floor(growth * Level.level[playerEid]));
                     this.triggerLevelUp(world, playerEid);
                 }
-                if (entityExists(world, eid)) { clearEntityData(eid); removeEntity(world, eid); }
+                destroyEntity(world, eid);
             }
         }
     }

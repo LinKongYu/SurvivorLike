@@ -3,9 +3,10 @@ import { System } from '../System';
 import { GameWorld } from '../World';
 import { Transform, Velocity, Camp, MoveToTarget, Drag } from '../Components';
 import { GameConfig } from '../GameConfig';
+import { SystemPriority } from '../Schedule';
 
 export class MonsterChaseSystem implements System {
-    readonly priority = 3;
+    readonly priority = SystemPriority.MonsterChase;
 
     update(_dt: number, world: GameWorld): void {
         for (const eid of query(world, [Transform, Velocity, Camp, MoveToTarget])) {

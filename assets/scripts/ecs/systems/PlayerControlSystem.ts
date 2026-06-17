@@ -3,9 +3,10 @@ import { System } from '../System';
 import { GameWorld } from '../World';
 import { Velocity, PlayerInput, Camp } from '../Components';
 import { GameConfig } from '../GameConfig';
+import { SystemPriority } from '../Schedule';
 
 export class PlayerControlSystem implements System {
-    readonly priority = 2;
+    readonly priority = SystemPriority.PlayerControl;
 
     update(_dt: number, world: GameWorld): void {
         const speed = GameConfig.player.moveSpeed;

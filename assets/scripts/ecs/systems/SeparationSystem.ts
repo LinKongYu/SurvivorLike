@@ -2,9 +2,10 @@ import { query } from '../../bitEcs';
 import { System } from '../System';
 import { GameWorld } from '../World';
 import { Transform, Collider, Camp } from '../Components';
+import { SystemPriority } from '../Schedule';
 
 export class SeparationSystem implements System {
-    readonly priority = 15;
+    readonly priority = SystemPriority.Separation;
 
     update(_dt: number, world: GameWorld): void {
         const enemies = query(world, [Transform, Collider, Camp]);

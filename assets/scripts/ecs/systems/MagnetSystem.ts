@@ -2,9 +2,10 @@ import { entityExists, query } from '../../bitEcs';
 import { Transform, ExpOrb, Velocity } from '../Components';
 import { System } from '../System';
 import { GameWorld } from '../World';
+import { SystemPriority } from '../Schedule';
 
 export class MagnetSystem implements System {
-    readonly priority = 4;
+    readonly priority = SystemPriority.Magnet;
     update(_dt: number, world: GameWorld): void {
         const playerEid = world.playerEid;
         if (playerEid < 0 || !entityExists(world, playerEid)) return;

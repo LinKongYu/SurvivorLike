@@ -1,15 +1,18 @@
-import { query, addEntity, removeEntity, entityExists } from '../../bitEcs';
+import { query, addEntity } from '../../bitEcs';
 import { System } from '../System';
 import { GameWorld } from '../World';
 import {
     Transform, PlayerInput, Collider, DamageDealer, Owner,
-    HitRecord, Lifetime, Render, clearEntityData,
+    HitRecord, Lifetime, Render, makeRender,
 } from '../Components';
 import { BombAttack, BombMarker, ExplosionMarker } from '../SkillComponents';
 import { GameConfig } from '../GameConfig';
+import { destroyEntity, addDamager } from '../Entities';
+import { SkillId } from '../Skills';
+import { SystemPriority } from '../Schedule';
 
 export class BombSystem implements System {
-    readonly priority = 24;
+    readonly priority = SystemPriority.Bomb;
 
     update(dt: number, world: GameWorld): void {
         this.triggerBombs(dt, world);
@@ -35,7 +38,7 @@ export class BombSystem implements System {
                 BombMarker.fuseTime[eid] = BombAttack.fuseTime[pid];
                 BombMarker.damage[eid] = BombAttack.damage[pid];
                 BombMarker.blastRadius[eid] = BombAttack.blastRadius[pid];
-                Render[eid] = { prefabName: 'Bomb', rotation: 0, width: 0, height: 0, node: null, created: false };
+                Render[eid] = makeRender('Bomb');
             }
         }
     }
@@ -46,31 +49,18 @@ export class BombSystem implements System {
             if (BombMarker.timer[eid] < BombMarker.fuseTime[eid]) continue;
 
             const lifeTime = GameConfig.skills.bomb.explosion.lifeTime;
+            const blastRadius = BombMarker.blastRadius[eid];
             const exid = addEntity(world, Transform, ExplosionMarker, Collider, DamageDealer, Owner, HitRecord, Lifetime, Render);
             Transform.x[exid] = Transform.x[eid];
             Transform.y[exid] = Transform.y[eid];
             ExplosionMarker.lifeTime[exid] = lifeTime;
             ExplosionMarker.damage[exid] = BombMarker.damage[eid];
-            ExplosionMarker.radius[exid] = BombMarker.blastRadius[eid];
-            Collider.radius[exid] = BombMarker.blastRadius[eid];
-            DamageDealer.damage[exid] = BombMarker.damage[eid];
-            DamageDealer.skillId[exid] = 'explosion';
-            Owner.eid[exid] = -1;
-            HitRecord[exid] = new Map();
+            ExplosionMarker.radius[exid] = blastRadius;
+            addDamager(exid, { damage: BombMarker.damage[eid], skillId: SkillId.Explosion, ownerEid: -1, radius: blastRadius });
             Lifetime.remaining[exid] = lifeTime;
-            Render[exid] = {
-                prefabName: 'Explosion',
-                rotation: 0,
-                width: BombMarker.blastRadius[eid] * 2,
-                height: BombMarker.blastRadius[eid] * 2,
-                node: null,
-                created: false,
-            };
+            Render[exid] = makeRender('Explosion', { width: blastRadius * 2, height: blastRadius * 2 });
 
-            if (entityExists(world, eid)) {
-                clearEntityData(eid);
-                removeEntity(world, eid);
-            }
+            destroyEntity(world, eid);
         }
     }
 }

@@ -2,9 +2,10 @@ import { query, removeComponent } from '../../bitEcs';
 import { System } from '../System';
 import { GameWorld } from '../World';
 import { Velocity, Drag } from '../Components';
+import { SystemPriority } from '../Schedule';
 
 export class DragSystem implements System {
-    readonly priority = 11;
+    readonly priority = SystemPriority.Drag;
 
     update(dt: number, world: GameWorld): void {
         const toRemove: number[] = [];

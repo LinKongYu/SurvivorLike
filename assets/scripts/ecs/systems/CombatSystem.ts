@@ -1,20 +1,23 @@
-import { query, addEntity, addComponent, removeEntity, entityExists, isNested } from '../../bitEcs';
+import { query, addEntity, addComponent, isNested } from '../../bitEcs';
 import {
     Transform, Velocity, PlayerInput, AutoAttack, Camp, Collider,
     DamageDealer, Owner, HitRecord, Drag, Health, Lifetime, HitFlash,
-    Render, clearEntityData,
+    Render, makeRender,
 } from '../Components';
 import { BladeMarker } from '../SkillComponents';
 import { GameConfig } from '../GameConfig';
 import { findNearestEnemy } from '../Helpers';
+import { destroyEntity, addDamager } from '../Entities';
+import { SkillId, skillKnockbackSpeed, skillHitCooldown, HIT_FLASH } from '../Skills';
 import { System } from '../System';
 import { GameWorld } from '../World';
+import { SystemPriority } from '../Schedule';
 
 /**
  * CombatSystem - auto attack, damage collision, health and contact damage.
  */
 export class CombatSystem implements System {
-    readonly priority = 20;
+    readonly priority = SystemPriority.Combat;
 
     update(dt: number, world: GameWorld): void {
         this.tickHitRecords(dt, world);
@@ -50,13 +53,9 @@ export class CombatSystem implements System {
                 Transform.y[eid] = Transform.y[pid];
                 Velocity.x[eid] = dirX * AutoAttack.bulletSpeed[pid];
                 Velocity.y[eid] = dirY * AutoAttack.bulletSpeed[pid];
-                DamageDealer.damage[eid] = AutoAttack.damage[pid];
-                DamageDealer.skillId[eid] = 'bullet';
-                Owner.eid[eid] = pid;
-                Collider.radius[eid] = bulletCfg.hitRadius;
-                HitRecord[eid] = new Map();
+                addDamager(eid, { damage: AutoAttack.damage[pid], skillId: SkillId.Bullet, ownerEid: pid, radius: bulletCfg.hitRadius });
                 Lifetime.remaining[eid] = bulletCfg.lifeTime;
-                Render[eid] = { prefabName: 'Bullet', rotation: 0, width: 0, height: 0, node: null, created: false };
+                Render[eid] = makeRender('Bullet');
             }
         }
     }
@@ -95,14 +94,11 @@ export class CombatSystem implements System {
                 if (!this.isDamageInRange(damageEid, skillId, distSq, radius, dx, dy)) continue;
 
                 Health.hp[enemyEid] -= DamageDealer.damage[damageEid];
-                this.applyKnockback(world, enemyEid, dx, dy, this.getKnockbackSpeed(skillId));
+                this.applyKnockback(world, enemyEid, dx, dy, skillKnockbackSpeed(skillId));
 
-                if (records) records.set(enemyEid, this.getHitCooldown(skillId));
-                if (skillId === 'bullet') {
-                    if (entityExists(world, damageEid)) {
-                        clearEntityData(damageEid);
-                        removeEntity(world, damageEid);
-                    }
+                if (records) records.set(enemyEid, skillHitCooldown(skillId));
+                if (skillId === SkillId.Bullet) {
+                    destroyEntity(world, damageEid);
                     break;
                 }
             }
@@ -112,7 +108,7 @@ export class CombatSystem implements System {
     private isDamageInRange(
         damageEid: number, skillId: string, distSq: number, radius: number, dx: number, dy: number,
     ): boolean {
-        if (skillId === 'blade') {
+        if (skillId === SkillId.Blade) {
             if (distSq > radius * radius) return false;
             const angle = Math.atan2(dy, dx);
             return Math.abs(this.angleDelta(angle, BladeMarker.facingAngle[damageEid])) <= BladeMarker.arc[damageEid] * 0.5;
@@ -149,22 +145,9 @@ export class CombatSystem implements System {
 
     private _triggerHitFlash(world: GameWorld, eid: number): void {
         addComponent(world, eid, HitFlash);
-        HitFlash.color[eid] = [1, 0, 0, 1];
-        HitFlash.remaining[eid] = 0.15;
-        HitFlash.totalDuration[eid] = 0.15;
-    }
-
-    private getKnockbackSpeed(skillId: string): number {
-        if (skillId === 'bullet') return GameConfig.skills.bullet.knockbackSpeed;
-        if (skillId === 'blade') return GameConfig.skills.blade.knockbackSpeed;
-        if (skillId === 'orbit') return GameConfig.skills.orbit.knockbackSpeed;
-        if (skillId === 'explosion') return GameConfig.skills.bomb.explosion.knockbackSpeed;
-        return 0;
-    }
-
-    private getHitCooldown(skillId: string): number {
-        if (skillId === 'orbit') return GameConfig.skills.orbit.hitCooldown;
-        return Infinity;
+        HitFlash.color[eid] = HIT_FLASH.color;
+        HitFlash.remaining[eid] = HIT_FLASH.duration;
+        HitFlash.totalDuration[eid] = HIT_FLASH.duration;
     }
 
     private angleDelta(a: number, b: number): number {

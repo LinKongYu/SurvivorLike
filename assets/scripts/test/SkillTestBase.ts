@@ -1,14 +1,15 @@
 import { _decorator, Component, Label } from 'cc';
-import { addEntity, entityExists, query, removeEntity } from '../bitEcs';
+import { addEntity, query } from '../bitEcs';
 import { createGameWorld, GameWorld } from '../ecs/World';
 import { System } from '../ecs/System';
 import { PrefabPool } from '../ecs/PrefabPool';
 import { GameConfig } from '../ecs/GameConfig';
 import { createEnemy } from '../ecs/EntityFactory';
 import {
-    Transform, Render, Camp, Health, MoveToTarget,
-    clearEntityData,
+    Transform, Render, Camp, Health, MoveToTarget, makeRender,
 } from '../ecs/Components';
+import { destroyEntity } from '../ecs/Entities';
+import { sortSystems } from '../ecs/Schedule';
 
 import { MonsterChaseSystem } from '../ecs/systems/MonsterChaseSystem';
 import { MovementSystem } from '../ecs/systems/MovementSystem';
@@ -121,10 +122,7 @@ export abstract class SkillTestBase extends Component {
         const playerEid = addEntity(world, Transform, Render, Camp, Health);
         Transform.x[playerEid] = 0;
         Transform.y[playerEid] = 0;
-        Render[playerEid] = {
-            prefabName: 'Player',
-            rotation: 0, width: 0, height: 0, node: null, created: false,
-        };
+        Render[playerEid] = makeRender('Player');
         Camp.value[playerEid] = 'player';
         Health.hp[playerEid] = 999999;
         Health.maxHp[playerEid] = 999999;
@@ -146,8 +144,7 @@ export abstract class SkillTestBase extends Component {
             new LifetimeSystem(),
             new RenderSystem(this.node),
         ];
-        this._systems = [...common, ...this._getSkillSystems()]
-            .sort((a, b) => a.priority - b.priority);
+        this._systems = sortSystems([...common, ...this._getSkillSystems()]);
 
         this._world = world;
         this._playerEid = playerEid;
@@ -200,11 +197,8 @@ export abstract class SkillTestBase extends Component {
             }
 
             if (dead || reached) {
-                if (entityExists(world, eid)) {
-                    resetHitFlashMaterial(eid);
-                    clearEntityData(eid);
-                    removeEntity(world, eid);
-                }
+                resetHitFlashMaterial(eid);
+                destroyEntity(world, eid);
             }
         }
     }

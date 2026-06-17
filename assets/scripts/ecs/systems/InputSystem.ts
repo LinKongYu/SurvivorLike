@@ -3,15 +3,15 @@ import { query } from '../../bitEcs';
 import { System } from '../System';
 import { GameWorld } from '../World';
 import { PlayerInput } from '../Components';
+import { SystemPriority } from '../Schedule';
 
 /**
  * InputSystem — 键盘 → PlayerInput
- * Priority: 0
  *
  * 每帧读取键盘状态，写入所有玩家实体的 PlayerInput 数据。
  */
 export class InputSystem implements System {
-    readonly priority = 0;
+    readonly priority = SystemPriority.Input;
 
     private _keys: Set<number> = new Set();
     private _registered = false;

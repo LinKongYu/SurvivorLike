@@ -1,15 +1,18 @@
-import { query, addEntity, removeEntity, entityExists } from '../../bitEcs';
+import { query, addEntity, entityExists } from '../../bitEcs';
 import { System } from '../System';
 import { GameWorld } from '../World';
 import {
     Transform, Collider, DamageDealer, Owner,
-    HitRecord, Render, clearEntityData,
+    HitRecord, Render, makeRender,
 } from '../Components';
 import { OrbitAttack, OrbitingSword } from '../SkillComponents';
 import { GameConfig } from '../GameConfig';
+import { destroyEntity, addDamager } from '../Entities';
+import { SkillId } from '../Skills';
+import { SystemPriority } from '../Schedule';
 
 export class OrbitSystem implements System {
-    readonly priority = 23;
+    readonly priority = SystemPriority.Orbit;
 
     update(dt: number, world: GameWorld): void {
         this.rebuildIfDirty(world);
@@ -22,10 +25,7 @@ export class OrbitSystem implements System {
             OrbitAttack.dirty[eid] = false;
 
             for (const sid of OrbitAttack.swordEntityIds[eid] ?? []) {
-                if (entityExists(world, sid)) {
-                    clearEntityData(sid);
-                    removeEntity(world, sid);
-                }
+                destroyEntity(world, sid);
             }
 
             OrbitAttack.swordEntityIds[eid] = [];
@@ -43,12 +43,8 @@ export class OrbitSystem implements System {
                 OrbitingSword.orbitRadius[swordEid] = OrbitAttack.orbitRadius[eid];
                 OrbitingSword.damage[swordEid] = OrbitAttack.damage[eid];
                 OrbitingSword.hitCooldown[swordEid] = orbitCfg.hitCooldown;
-                Collider.radius[swordEid] = orbitCfg.hitRadius;
-                DamageDealer.damage[swordEid] = OrbitAttack.damage[eid];
-                DamageDealer.skillId[swordEid] = 'orbit';
-                Owner.eid[swordEid] = eid;
-                HitRecord[swordEid] = new Map();
-                Render[swordEid] = { prefabName: 'OrbitingSword', rotation: 0, width: 0, height: 0, node: null, created: false };
+                addDamager(swordEid, { damage: OrbitAttack.damage[eid], skillId: SkillId.Orbit, ownerEid: eid, radius: orbitCfg.hitRadius });
+                Render[swordEid] = makeRender('OrbitingSword');
                 OrbitAttack.swordEntityIds[eid].push(swordEid);
             }
         }
@@ -58,8 +54,7 @@ export class OrbitSystem implements System {
         for (const eid of query(world, [OrbitingSword])) {
             const ownerEid = OrbitingSword.ownerEntityId[eid];
             if (!entityExists(world, ownerEid)) {
-                clearEntityData(eid);
-                removeEntity(world, eid);
+                destroyEntity(world, eid);
                 continue;
             }
 

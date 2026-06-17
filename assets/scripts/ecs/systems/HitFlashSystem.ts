@@ -3,6 +3,7 @@ import { query, removeComponent } from '../../bitEcs';
 import { System } from '../System';
 import { GameWorld } from '../World';
 import { Render, HitFlash } from '../Components';
+import { SystemPriority } from '../Schedule';
 
 function _findSprite(node: any): Sprite | null {
     let sprite = node.getComponent(Sprite);
@@ -34,7 +35,7 @@ export function resetHitFlashMaterial(eid: number): void {
 }
 
 export class HitFlashSystem implements System {
-    readonly priority = 25;
+    readonly priority = SystemPriority.HitFlash;
 
     update(dt: number, world: GameWorld): void {
         for (const eid of query(world, [HitFlash, Render])) {

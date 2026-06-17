@@ -6,9 +6,10 @@ import { addEntity } from '../bitEcs';
 import {
     Transform, Velocity, Camp, PlayerInput, AutoAttack, Level,
     Health, DamageDealer, MoveToTarget, Collider, ExpReward, Spawner,
-    Render,
+    Render, makeRender,
 } from './Components';
 import { GameConfig } from './GameConfig';
+import { SkillId } from './Skills';
 import { GameWorld } from './World';
 
 export function createPlayer(world: GameWorld, x: number, y: number): number {
@@ -36,7 +37,7 @@ export function createPlayer(world: GameWorld, x: number, y: number): number {
     Health.maxHp[eid] = cfg.hp;
     Health.invincibleTimer[eid] = 0;
     Health.invincibleTime[eid] = cfg.invincibleTime;
-    Render[eid] = { prefabName: 'Player', rotation: 0, width: 0, height: 0, node: null, created: false };
+    Render[eid] = makeRender('Player');
     return eid;
 }
 
@@ -59,12 +60,12 @@ export function createEnemy(world: GameWorld, x: number, y: number, playerEid: n
     Health.invincibleTimer[eid] = 0;
     Health.invincibleTime[eid] = 0;
     DamageDealer.damage[eid] = Math.floor(cfg.baseDamage * dmgMul);
-    DamageDealer.skillId[eid] = 'enemy_contact';
+    DamageDealer.skillId[eid] = SkillId.EnemyContact;
     MoveToTarget.targetEntityId[eid] = playerEid;
     MoveToTarget.moveSpeed[eid] = cfg.baseMoveSpeed * speedMul;
     Collider.radius[eid] = cfg.colliderRadius;
     ExpReward.value[eid] = cfg.baseExpReward + step * cfg.expBonusPerLevel;
-    Render[eid] = { prefabName: 'Enemy', rotation: 0, width: 0, height: 0, node: null, created: false };
+    Render[eid] = makeRender('Enemy');
     return eid;
 }
 

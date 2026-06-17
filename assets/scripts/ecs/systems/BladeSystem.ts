@@ -3,14 +3,17 @@ import { System } from '../System';
 import { GameWorld } from '../World';
 import {
     Transform, PlayerInput, Collider, DamageDealer, Owner,
-    HitRecord, Lifetime, Render,
+    HitRecord, Lifetime, Render, makeRender,
 } from '../Components';
 import { BladeAttack, BladeMarker } from '../SkillComponents';
 import { GameConfig } from '../GameConfig';
 import { findNearestEnemy } from '../Helpers';
+import { addDamager } from '../Entities';
+import { SkillId } from '../Skills';
+import { SystemPriority } from '../Schedule';
 
 export class BladeSystem implements System {
-    readonly priority = 22;
+    readonly priority = SystemPriority.Blade;
 
     update(dt: number, world: GameWorld): void {
         this.triggerBlades(dt, world);
@@ -35,26 +38,20 @@ export class BladeSystem implements System {
 
             for (let i = 0; i < count; i++) {
                 const angle = baseAngle + i * step;
+                const range = BladeAttack.range[pid];
                 const eid = addEntity(world, Transform, BladeMarker, Collider, DamageDealer, Owner, HitRecord, Lifetime, Render);
                 Transform.x[eid] = Transform.x[pid];
                 Transform.y[eid] = Transform.y[pid];
                 BladeMarker.facingAngle[eid] = angle;
                 BladeMarker.arc[eid] = BladeAttack.arc[pid];
-                BladeMarker.range[eid] = BladeAttack.range[pid];
-                Collider.radius[eid] = BladeAttack.range[pid];
-                DamageDealer.damage[eid] = BladeAttack.damage[pid];
-                DamageDealer.skillId[eid] = 'blade';
-                Owner.eid[eid] = pid;
-                HitRecord[eid] = new Map();
+                BladeMarker.range[eid] = range;
+                addDamager(eid, { damage: BladeAttack.damage[pid], skillId: SkillId.Blade, ownerEid: pid, radius: range });
                 Lifetime.remaining[eid] = lifeTime;
-                Render[eid] = {
-                    prefabName: 'BladeHitbox',
+                Render[eid] = makeRender('BladeHitbox', {
                     rotation: angle * 180 / Math.PI,
-                    width: BladeAttack.range[pid] * 2,
-                    height: BladeAttack.range[pid] * 2,
-                    node: null,
-                    created: false,
-                };
+                    width: range * 2,
+                    height: range * 2,
+                });
             }
         }
     }

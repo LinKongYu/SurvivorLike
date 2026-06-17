@@ -4,13 +4,13 @@ import { GameWorld } from '../World';
 import { Camp, Spawner, Transform } from '../Components';
 import { GameConfig } from '../GameConfig';
 import { createEnemy } from '../EntityFactory';
+import { SystemPriority } from '../Schedule';
 
 /**
  * SpawnerSystem — 定时生成敌人 + 难度递增
- * Priority: 40
  */
 export class SpawnerSystem implements System {
-    readonly priority = 40;
+    readonly priority = SystemPriority.Spawner;
 
     update(dt: number, world: GameWorld): void {
         const cfg = GameConfig.spawner;

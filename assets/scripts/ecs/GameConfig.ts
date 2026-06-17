@@ -194,6 +194,24 @@ function parseLongTable(text: string): Record<string, any> {
     return groups;
 }
 
+// ─── 加载后校验：缺键/非数值即报错，避免运行期静默 NaN ───
+
+/** 读取 `a.b.c` 形式的嵌套值；任一层缺失返回 undefined。 */
+function getPath(obj: any, path: string): any {
+    return path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
+}
+
+/** 校验 obj 上一组点分路径均为有限数值，返回缺失/非数值路径（带 label 前缀）。 */
+function requireNumbers(obj: any, paths: string[], label: string): string[] {
+    const bad: string[] = [];
+    for (const p of paths) {
+        const v = getPath(obj, p);
+        if (typeof v !== 'number' || !Number.isFinite(v)) bad.push(`${label}.${p}`);
+    }
+    return bad;
+}
+
+
 // ─── GameConfig 单例 ───
 
 export class GameConfig {
@@ -252,7 +270,44 @@ export class GameConfig {
 
             this.skills = parseLongTable(skillCsv) as SkillsConfig;
 
+            this.validate();
             this._loaded = true;
         });
+    }
+
+    /** 校验关键数值字段齐备；缺失则一次性抛出全部问题，便于改表时定位。 */
+    private static validate(): void {
+        const errors: string[] = [
+            ...requireNumbers(this.player, [
+                'hp', 'moveSpeed', 'invincibleTime',
+                'initialAttack.cooldown', 'initialAttack.range', 'initialAttack.damage',
+                'initialAttack.bulletSpeed', 'initialAttack.count', 'initialAttack.spreadAngle',
+                'level.initialExpToNext', 'level.expGrowthFactor',
+            ], 'Player'),
+            ...requireNumbers(this.spawner, [
+                'initialInterval', 'initialMaxCount', 'spawnRadius', 'minSpawnDistance',
+                'initialSpawnCount', 'difficultyIntervalSeconds', 'spawnIntervalDecay',
+                'minInterval', 'maxCountIncrement', 'maxCountCap',
+            ], 'Spawner'),
+            ...requireNumbers(this.enemyDefault, [
+                'baseHp', 'baseDamage', 'baseMoveSpeed', 'baseExpReward', 'colliderRadius',
+                'hpScalePerLevel', 'damageScalePerLevel', 'speedScalePerLevel', 'expBonusPerLevel',
+            ], 'Enemy(default)'),
+            ...requireNumbers(this.skills, [
+                'bullet.lifeTime', 'bullet.hitRadius', 'bullet.knockbackSpeed',
+                'expOrb.attractRange', 'expOrb.attractSpeed', 'expOrb.collectDistance',
+                'contact.enemyPlayerHitRadius', 'knockback.drag',
+                'blade.cooldown', 'blade.damage', 'blade.range', 'blade.arcDegrees',
+                'blade.count', 'blade.lifeTime', 'blade.knockbackSpeed',
+                'orbit.count', 'orbit.damage', 'orbit.orbitRadius', 'orbit.angularSpeed',
+                'orbit.hitCooldown', 'orbit.hitRadius', 'orbit.knockbackSpeed',
+                'bomb.cooldown', 'bomb.damage', 'bomb.fuseTime', 'bomb.blastRadius',
+                'bomb.count', 'bomb.throwDistance',
+                'bomb.explosion.lifeTime', 'bomb.explosion.knockbackSpeed',
+            ], 'Skill'),
+        ];
+        if (errors.length > 0) {
+            throw new Error('[GameConfig] 配置缺失或非数值字段:\n  ' + errors.join('\n  '));
+        }
     }
 }
